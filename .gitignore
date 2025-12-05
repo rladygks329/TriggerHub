@@ -35,3 +35,28 @@ out/
 
 ### VS Code ###
 .vscode/
+
+### Python ###
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+ENV/
+*.egg-info/
+dist/
+build/
+
+### Django ###
+db.sqlite3
+db.sqlite3-journal
+*.log
+staticfiles/
+media/
+
+### Environment Variables ###
+.env
+.env.local
+.env.*.local
