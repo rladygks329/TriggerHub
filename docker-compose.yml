@@ -9,7 +9,7 @@ services:
       - .env
     volumes:
       # DB 파일 영속화 (선택사항)
-      - ./db.sqlite3:/app/db.sqlite3
+      - ./data:/app/data
     restart: unless-stopped
 
 

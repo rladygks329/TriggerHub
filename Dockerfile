@@ -14,6 +14,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 # 프로젝트 파일 복사
 COPY . .
 
+# DB 디렉토리 생성 및 권한 설정
+RUN mkdir -p /app/data && chmod 777 /app/data
+
 # 포트 노출
 EXPOSE 8000
 
