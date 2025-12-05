@@ -62,13 +62,44 @@ def _get_okx_client() -> OkxClient:
     return OkxClient.from_config()
 
 
+def _normalize_symbol(symbol: str) -> str:
+    """
+    TradingView 형식의 symbol을 OKX 형식으로 변환.
+    
+    예시:
+    - "ETHUSDT" → "ETH-USDT-SWAP"
+    - "BTCUSDT" → "BTC-USDT-SWAP"
+    - "ETH-USDT-SWAP" → "ETH-USDT-SWAP" (이미 OKX 형식이면 그대로)
+    """
+    if not symbol:
+        return symbol
+    
+    # 이미 OKX 형식인지 확인 (-SWAP 또는 -FUTURES 포함)
+    if "-SWAP" in symbol or "-FUTURES" in symbol or "-SPOT" in symbol:
+        return symbol
+    
+    # TradingView 형식 변환 (예: ETHUSDT → ETH-USDT-SWAP)
+    # USDT로 끝나는 경우
+    if symbol.endswith("USDT"):
+        base = symbol[:-4]  # "ETHUSDT" → "ETH"
+        return f"{base}-USDT-SWAP"
+    
+    # BTC로 끝나는 경우
+    if symbol.endswith("BTC"):
+        base = symbol[:-3]  # "ETHBTC" → "ETH"
+        return f"{base}-BTC-SWAP"
+    
+    # 변환 실패 시 원본 반환
+    return symbol
+
+
 def _parse_signal(payload: Dict[str, Any]) -> Dict[str, Any]:
     """
     트레이딩뷰 Webhook 등에서 들어오는 payload를 내부 포맷으로 변환.
     config.json의 기본값을 사용하고, payload에서 오버라이드 가능.
     
     지원 필드:
-    - symbol / instId: 거래 심볼 (기본값: config.trading.symbol)
+    - symbol / instId: 거래 심볼 (TradingView 형식 자동 변환: ETHUSDT → ETH-USDT-SWAP)
     - side / action: buy 또는 sell (필수)
     - size / qty / sz: 주문 수량 (기본값: 1, use_full_balance=true면 자동 계산)
     - tp: Take Profit 퍼센트 (기본값: config.trading.take_profit_percent)
@@ -81,13 +112,23 @@ def _parse_signal(payload: Dict[str, Any]) -> Dict[str, Any]:
     config = get_config()
     
     # 필수 필드 파싱 (symbol은 config에서 기본값 제공)
-    symbol = payload.get("symbol") or payload.get("instId") or config.trading_symbol
+    raw_symbol = payload.get("symbol") or payload.get("instId") or config.trading_symbol
     side = payload.get("side") or payload.get("action")
     
-    if not symbol:
+    if not raw_symbol:
         raise ValueError("invalid payload: symbol 부족")
+    
+    # Symbol 정규화 (TradingView 형식 → OKX 형식)
+    symbol = _normalize_symbol(raw_symbol)
+    
+    # side/action 검증 및 정규화
+    if not side:
+        raise ValueError("invalid payload: side/action 부족")
+    
+    # action을 side로 변환 (lowercase)
+    side = side.lower()
     if side not in ("buy", "sell"):
-        raise ValueError("invalid payload: side는 'buy' 또는 'sell'이어야 합니다")
+        raise ValueError(f"invalid payload: side는 'buy' 또는 'sell'이어야 합니다 (받은 값: {side})")
     
     # 레버리지 & 마진 모드 (config 기본값 사용)
     leverage = payload.get("leverage") or payload.get("lever")
@@ -190,7 +231,13 @@ def okx_webhook(request: HttpRequest):
     # 신호 파싱
     try:
         signal = _parse_signal(payload)
+        # 파싱된 신호 로깅
+        log_webhook("SIGNAL_PARSED", f"symbol={signal['symbol']} side={signal['side']}", {
+            "original_payload": payload,
+            "parsed_signal": signal,
+        })
     except ValueError as e:
+        log_webhook("SIGNAL_PARSE_ERROR", str(e), {"payload": payload})
         return JsonResponse({"ok": False, "error": str(e)}, status=400)
 
     # OKX 클라이언트 생성
@@ -199,13 +246,31 @@ def okx_webhook(request: HttpRequest):
     try:
         # 수량 결정: use_full_balance=true면 자동 계산
         if signal["use_full_balance"] or signal["size"] == "auto":
+            log_webhook("SIZE_CALCULATION", "전체 잔고 기반 수량 계산 시작", {
+                "symbol": signal["symbol"],
+                "leverage": signal["leverage"],
+            })
             calculated_size = client.calculate_order_size(
                 inst_id=signal["symbol"],
                 leverage=signal["leverage"],
                 balance_percent=100.0,  # 100% 사용
             )
             signal["size"] = calculated_size
-            print(f"[OKX] 전체 잔고 사용: 계산된 수량 = {calculated_size}")
+            log_webhook("SIZE_CALCULATED", f"계산된 수량={calculated_size}", {
+                "symbol": signal["symbol"],
+                "size": calculated_size,
+            })
+        
+        # 주문 실행 전 로깅
+        log_webhook("ORDER_START", f"주문 실행 시작", {
+            "symbol": signal["symbol"],
+            "side": signal["side"],
+            "size": signal["size"],
+            "leverage": signal["leverage"],
+            "td_mode": signal["td_mode"],
+            "tp_percent": signal["tp_percent"],
+            "sl_percent": signal["sl_percent"],
+        })
         
         # 레버리지 설정 후 TP/SL 포함 주문 실행
         resp = client.place_order_with_leverage(
