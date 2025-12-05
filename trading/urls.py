@@ -1,10 +1,12 @@
 from django.urls import path
 
-from .views import okx_webhook, health_check
+from .views import okx_webhook, health_check, webhook_test, webhook_logs
 
 urlpatterns = [
     path("okx/", okx_webhook, name="okx-webhook"),
     path("health/", health_check, name="health-check"),
+    path("test/", webhook_test, name="webhook-test"),
+    path("logs/", webhook_logs, name="webhook-logs"),
 ]
 
 

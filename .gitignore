@@ -55,6 +55,7 @@ db.sqlite3-journal
 *.log
 staticfiles/
 media/
+logs/
 
 ### Environment Variables ###
 .env
