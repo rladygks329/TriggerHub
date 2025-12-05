@@ -90,3 +90,13 @@ docker-compose down
 
 - [배포 가이드](docs/DEPLOY.md) - EC2 배포 및 Docker 사용 방법
 - [웹훅 테스트 가이드](docs/WEBHOOK_TEST.md) - 웹훅 테스트 및 TradingView 연동 방법
+- [GitHub Actions 자동 배포](docs/GITHUB_ACTIONS.md) - CI/CD 자동 배포 설정
+- [Discord 연동](docs/DISCORD.md) - Discord 알림 설정 방법
+
+## 🚀 주요 기능
+
+- ✅ OKX 자동매매 웹훅 서버
+- ✅ Docker 컨테이너화
+- ✅ GitHub Actions 자동 배포
+- ✅ Discord 실시간 알림
+- ✅ Health check 엔드포인트

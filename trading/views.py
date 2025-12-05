@@ -11,6 +11,7 @@ from django.views.decorators.http import require_POST
 
 from .config import get_config
 from .okx_client import OkxClient
+from .discord import get_discord_webhook_url, send_discord_message
 
 
 # ============================================
@@ -301,6 +302,52 @@ def health_check(request: HttpRequest):
         "default_sl_percent": config.stop_loss_percent,
         "is_demo": config.is_demo,
     })
+
+
+@csrf_exempt
+def discord_check(request: HttpRequest):
+    """
+    Discord 테스트 엔드포인트.
+    Discord 웹훅이 정상 작동하는지 확인용.
+    
+    GET /webhook/discord-check/
+    """
+    webhook_url = get_discord_webhook_url()
+    
+    if not webhook_url:
+        return JsonResponse({
+            "ok": False,
+            "error": "DISCORD_WEBHOOK_URL 환경변수가 설정되지 않았습니다",
+            "webhook_configured": False,
+        }, status=400)
+    
+    # 테스트 메시지 전송
+    success = send_discord_message(
+        webhook_url=webhook_url,
+        title="🧪 Discord 테스트 메시지",
+        description="TriggerHub 서버에서 Discord 연동 테스트를 실행했습니다.",
+        color=0x0099FF,  # Blue
+        fields=[
+            {"name": "서버 상태", "value": "정상", "inline": True},
+            {"name": "테스트 시간", "value": datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "inline": True},
+            {"name": "메시지", "value": "이 메시지가 보이면 Discord 연동이 정상적으로 작동합니다! ✅", "inline": False},
+        ],
+    )
+    
+    if success:
+        return JsonResponse({
+            "ok": True,
+            "message": "Discord 테스트 메시지가 성공적으로 전송되었습니다",
+            "webhook_configured": True,
+            "webhook_url_set": True,
+        })
+    else:
+        return JsonResponse({
+            "ok": False,
+            "error": "Discord 메시지 전송 실패",
+            "webhook_configured": True,
+            "webhook_url_set": True,
+        }, status=500)
 
 
 @csrf_exempt
