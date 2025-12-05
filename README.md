@@ -47,9 +47,46 @@ python manage.py runserver 0.0.0.0:8000
 }
 ```
 
-### 4. 주의사항
+### 4. Docker로 실행
+
+#### Dockerfile 빌드 및 실행
+
+```bash
+# 이미지 빌드
+docker build -t triggerhub .
+
+# 컨테이너 실행 (.env 파일 필요)
+docker run -d \
+  --name triggerhub \
+  -p 8000:8000 \
+  --env-file .env \
+  triggerhub
+
+# 로그 확인
+docker logs -f triggerhub
+```
+
+#### docker-compose 사용 (권장)
+
+```bash
+# .env 파일 생성 후
+docker-compose up -d
+
+# 로그 확인
+docker-compose logs -f
+
+# 중지
+docker-compose down
+```
+
+### 5. 주의사항
 
 - 이 코드는 **실거래 이전에 반드시 모의/테스트 환경에서 충분히 검증**해야 합니다.
 - OKX API 스펙/제한/리스크 관리(레버리지, 포지션, 마진 등)는 반드시 문서를 참고해서 보완하세요.
 
+---
 
+## 📚 추가 문서
+
+- [배포 가이드](docs/DEPLOY.md) - EC2 배포 및 Docker 사용 방법
+- [웹훅 테스트 가이드](docs/WEBHOOK_TEST.md) - 웹훅 테스트 및 TradingView 연동 방법
