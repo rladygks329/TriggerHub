@@ -207,6 +207,11 @@ def okx_webhook(request: HttpRequest):
         "td_mode": "cross"
     }
     """
+    # 함수 진입 확인 (가장 먼저 실행)
+    print("=" * 80, flush=True)
+    print(f"[OKX_WEBHOOK] 함수 호출됨 | path={request.path} | method={request.method}", flush=True)
+    print("=" * 80, flush=True)
+    
     config = get_config()
     
     # 트레이딩 활성화 확인
