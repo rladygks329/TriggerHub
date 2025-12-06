@@ -423,6 +423,8 @@ class OkxClient:
         레버리지 설정 후 TP/SL 포함 주문.
         자동매매에서 주로 사용하는 통합 메서드.
         """
+        print(f"[OKX] place_order_with_leverage 호출: inst_id={inst_id}, side={side}, sz={sz}, leverage={leverage}, tp={tp_percent}, sl={sl_percent}", flush=True)
+        
         # 1. 레버리지 설정
         margin_mode = td_mode or self.td_mode
         lev = leverage or self.leverage
