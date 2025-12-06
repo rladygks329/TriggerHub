@@ -129,7 +129,7 @@ class OkxClient:
 
     def round_to_lot_size(self, quantity: str, inst_id: str) -> str:
         """
-        주문 수량을 lot size의 배수로 반올림.
+        주문 수량을 lot size의 배수로 반올림 (내림).
         
         Args:
             quantity: 주문 수량 (문자열)
@@ -137,32 +137,48 @@ class OkxClient:
         
         Returns:
             lot size의 배수로 반올림된 수량 (문자열)
+        
+        예시:
+            - lot size = 0.1, quantity = 0.401 → 0.4 (4 * 0.1)
+            - lot size = 0.1, quantity = 0.1 → 0.1 (1 * 0.1)
+            - lot size = 0.001, quantity = 0.123 → 0.123 (123 * 0.001)
         """
         try:
             # Instrument 정보에서 lot size 가져오기
             inst_info = self.get_instrument_info(inst_id)
-            lot_sz = Decimal(inst_info.get('lotSz', '0.001'))  # 기본값 0.001
+            lot_sz = Decimal(str(inst_info.get('lotSz', '0.001')))  # 기본값 0.001
+            min_sz = Decimal(str(inst_info.get('minSz', '0.001')))  # 최소 주문 수량
             
             # 수량을 Decimal로 변환
             qty = Decimal(str(quantity))
             
-            # lot size의 배수로 반올림
-            rounded = (qty / lot_sz).quantize(Decimal('1'), rounding=ROUND_DOWN) * lot_sz
+            # 디버깅 로그
+            print(f"[OKX] Lot size 반올림: 원본={qty}, lot_sz={lot_sz}, min_sz={min_sz}")
+            
+            # lot size의 배수로 내림 (예: 0.401 / 0.1 = 4.01 → 4 → 4 * 0.1 = 0.4)
+            if lot_sz > 0:
+                multiplier = (qty / lot_sz).quantize(Decimal('1'), rounding=ROUND_DOWN)
+                rounded = multiplier * lot_sz
+            else:
+                rounded = qty
             
             # 최소 주문 수량 확인
-            min_sz = Decimal(inst_info.get('minSz', '0.001'))
             if rounded < min_sz:
+                print(f"[OKX] 반올림된 수량({rounded})이 최소 수량({min_sz})보다 작음, 최소 수량 사용")
                 rounded = min_sz
             
+            print(f"[OKX] Lot size 반올림 결과: {qty} → {rounded} (lot_sz={lot_sz}, 배수={multiplier if lot_sz > 0 else 'N/A'})")
             return str(rounded)
         except Exception as e:
             # 실패 시 기본값 0.001로 반올림
             print(f"[OKX] Lot size 반올림 실패, 기본값 사용: {e}")
             qty = Decimal(str(quantity))
             lot_sz = Decimal('0.001')
-            rounded = (qty / lot_sz).quantize(Decimal('1'), rounding=ROUND_DOWN) * lot_sz
+            multiplier = (qty / lot_sz).quantize(Decimal('1'), rounding=ROUND_DOWN)
+            rounded = multiplier * lot_sz
             if rounded < Decimal('0.001'):
                 rounded = Decimal('0.001')
+            print(f"[OKX] 기본값 사용 결과: {qty} → {rounded}")
             return str(rounded)
 
     # ============================================
