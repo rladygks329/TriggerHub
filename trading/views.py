@@ -294,119 +294,151 @@ def okx_webhook(request: HttpRequest):
         log_webhook("SIGNAL_PARSE_ERROR", str(e), {"payload": payload})
         return JsonResponse({"ok": False, "error": str(e)}, status=400)
 
-    # OKX 클라이언트 생성
-    client = _get_okx_client()
+    # 활성 계정 목록 가져오기
+    active_accounts = config.get_active_accounts()
     
-    try:
-        # 수량 결정: use_full_balance=true면 자동 계산
-        if signal["use_full_balance"] or signal["size"] == "auto":
-            log_webhook("SIZE_CALCULATION", "전체 잔고 기반 수량 계산 시작", {
-                "symbol": signal["symbol"],
-                "leverage": signal["leverage"],
+    if not active_accounts:
+        error_msg = "활성화된 거래 계정이 없습니다 (useYn: 'y'인 계정 없음)."
+        log_webhook("NO_ACTIVE_ACCOUNTS", error_msg, {"payload": payload})
+        return JsonResponse({"ok": False, "error": error_msg}, status=400)
+    
+    # 모든 활성 계정에 주문 실행
+    results = []
+    errors = []
+    
+    for account_config in active_accounts:
+        account_name = account_config.get("name", "unknown")
+        log_webhook("TRADING_ACCOUNT", f"계정 '{account_name}'으로 주문 시도", {
+            "account": account_name,
+            "signal": signal
+        })
+        
+        # 계정별 OKX 클라이언트 생성
+        client = OkxClient.from_account_config(account_config, config.trading)
+        
+        try:
+            # 수량 결정: use_full_balance=true면 자동 계산
+            account_signal = signal.copy()
+            if account_signal["use_full_balance"] or account_signal["size"] == "auto":
+                log_webhook("SIZE_CALCULATION", f"계정 '{account_name}' 전체 잔고 기반 수량 계산 시작", {
+                    "symbol": account_signal["symbol"],
+                    "leverage": account_signal["leverage"],
+                })
+                calculated_size = client.calculate_order_size(
+                    inst_id=account_signal["symbol"],
+                    leverage=account_signal["leverage"],
+                    balance_percent=100.0,  # 100% 사용
+                )
+                account_signal["size"] = calculated_size
+                log_webhook("SIZE_CALCULATED", f"계정 '{account_name}' 계산된 수량={calculated_size}", {
+                    "symbol": account_signal["symbol"],
+                    "size": calculated_size,
+                })
+            
+            # 주문 실행 전 로깅
+            log_webhook("ORDER_START", f"계정 '{account_name}' 주문 실행 시작", {
+                "account": account_name,
+                "symbol": account_signal["symbol"],
+                "side": account_signal["side"],
+                "size": account_signal["size"],
+                "leverage": account_signal["leverage"],
+                "td_mode": account_signal["td_mode"],
+                "tp_percent": account_signal["tp_percent"],
+                "sl_percent": account_signal["sl_percent"],
             })
-            calculated_size = client.calculate_order_size(
-                inst_id=signal["symbol"],
-                leverage=signal["leverage"],
-                balance_percent=100.0,  # 100% 사용
+            
+            # 레버리지 설정 후 TP/SL 포함 주문 실행
+            resp = client.place_order_with_leverage(
+                inst_id=account_signal["symbol"],
+                side=account_signal["side"],
+                sz=account_signal["size"],
+                leverage=account_signal["leverage"],
+                tp_percent=account_signal["tp_percent"],
+                sl_percent=account_signal["sl_percent"],
+                td_mode=account_signal["td_mode"],
             )
-            signal["size"] = calculated_size
-            log_webhook("SIZE_CALCULATED", f"계산된 수량={calculated_size}", {
-                "symbol": signal["symbol"],
-                "size": calculated_size,
-            })
-        
-        # 주문 실행 전 로깅
-        log_webhook("ORDER_START", f"주문 실행 시작", {
-            "symbol": signal["symbol"],
-            "side": signal["side"],
-            "size": signal["size"],
-            "leverage": signal["leverage"],
-            "td_mode": signal["td_mode"],
-            "tp_percent": signal["tp_percent"],
-            "sl_percent": signal["sl_percent"],
-        })
-        
-        # 레버리지 설정 후 TP/SL 포함 주문 실행
-        log_webhook("CALLING_PLACE_ORDER", "place_order_with_leverage 호출 시작", {
-            "symbol": signal["symbol"],
-            "side": signal["side"],
-            "size": signal["size"],
-            "leverage": signal["leverage"],
-            "tp_percent": signal["tp_percent"],
-            "sl_percent": signal["sl_percent"],
-        })
-        resp = client.place_order_with_leverage(
-            inst_id=signal["symbol"],
-            side=signal["side"],
-            sz=signal["size"],
-            leverage=signal["leverage"],
-            tp_percent=signal["tp_percent"],
-            sl_percent=signal["sl_percent"],
-            td_mode=signal["td_mode"],
-        )
-        log_webhook("CALLED_PLACE_ORDER", "place_order_with_leverage 호출 완료", {
-            "response_code": resp.get("code") if isinstance(resp, dict) else "unknown",
-        })
-        
-        # 응답 처리
-        if client.is_success(resp):
-            order_id = client.get_order_id(resp)
             
-            # 파일 로그 (성공)
-            log_webhook("ORDER_SUCCESS", f"symbol={signal['symbol']} side={signal['side']}", {
-                "order_id": order_id,
-                "size": signal["size"],
-                "leverage": signal["leverage"],
-                "td_mode": signal["td_mode"],
-                "tp_percent": signal["tp_percent"],
-                "sl_percent": signal["sl_percent"],
-            })
+            # 응답 처리
+            if client.is_success(resp):
+                order_id = client.get_order_id(resp)
+                
+                # 파일 로그 (성공)
+                log_webhook("ORDER_SUCCESS", f"계정 '{account_name}' symbol={account_signal['symbol']} side={account_signal['side']}", {
+                    "account": account_name,
+                    "order_id": order_id,
+                    "size": account_signal["size"],
+                    "leverage": account_signal["leverage"],
+                    "td_mode": account_signal["td_mode"],
+                    "tp_percent": account_signal["tp_percent"],
+                    "sl_percent": account_signal["sl_percent"],
+                })
+                
+                results.append({
+                    "account": account_name,
+                    "ok": True,
+                    "order_id": order_id,
+                    "symbol": account_signal["symbol"],
+                    "side": account_signal["side"],
+                    "size": account_signal["size"],
+                    "leverage": account_signal["leverage"],
+                    "td_mode": account_signal["td_mode"],
+                    "tp_percent": account_signal["tp_percent"],
+                    "sl_percent": account_signal["sl_percent"],
+                })
+            else:
+                error_msg = client.get_error_message(resp)
+                
+                # 파일 로그 (실패)
+                log_webhook("ORDER_FAILED", f"계정 '{account_name}' symbol={account_signal['symbol']}", {
+                    "account": account_name,
+                    "error": error_msg,
+                    "code": resp.get("code"),
+                })
+                
+                errors.append({
+                    "account": account_name,
+                    "error": error_msg,
+                    "code": resp.get("code"),
+                    "raw_response": resp,
+                })
+                
+        except Exception as e:
+            raw_resp = None
+            if hasattr(e, "response") and getattr(e, "response") is not None:
+                try:
+                    raw_resp = e.response.text
+                except Exception:
+                    raw_resp = "unavailable"
             
-            return JsonResponse({
-                "ok": True,
-                "order_id": order_id,
-                "symbol": signal["symbol"],
-                "side": signal["side"],
-                "size": signal["size"],
-                "leverage": signal["leverage"],
-                "td_mode": signal["td_mode"],
-                "tp_percent": signal["tp_percent"],
-                "sl_percent": signal["sl_percent"],
-            })
-        else:
-            error_msg = client.get_error_message(resp)
-            
-            # 파일 로그 (실패)
-            log_webhook("ORDER_FAILED", f"symbol={signal['symbol']}", {
-                "error": error_msg,
-                "code": resp.get("code"),
+            # 파일 로그 (예외)
+            log_webhook("ORDER_EXCEPTION", f"계정 '{account_name}' {str(e)}", {
+                "account": account_name,
+                "signal": account_signal,
+                "raw_response": raw_resp,
             })
             
-            return JsonResponse({
-                "ok": False,
-                "error": error_msg,
-                "code": resp.get("code"),
-                "raw_response": resp,
-            }, status=400)
-            
-    except Exception as e:
-        raw_resp = None
-        if hasattr(e, "response") and getattr(e, "response") is not None:
-            try:
-                raw_resp = e.response.text
-            except Exception:
-                raw_resp = "unavailable"
-        
-        # 파일 로그 (예외)
-        log_webhook("ORDER_EXCEPTION", str(e), {
-            "signal": signal,
-            "raw_response": raw_resp,
+            errors.append({
+                "account": account_name,
+                "error": str(e),
+                "raw_response": raw_resp
+            })
+    
+    # 결과 반환
+    if results:
+        return JsonResponse({
+            "ok": True,
+            "total_accounts": len(active_accounts),
+            "success_count": len(results),
+            "error_count": len(errors),
+            "results": results,
+            "errors": errors if errors else None,
         })
-        
+    else:
         return JsonResponse({
             "ok": False,
-            "error": str(e),
-            "raw_response": raw_resp
+            "error": "모든 계정에서 주문 실패",
+            "total_accounts": len(active_accounts),
+            "errors": errors,
         }, status=500)
 
 
@@ -414,24 +446,113 @@ def okx_webhook(request: HttpRequest):
 def health_check(request: HttpRequest):
     """
     헬스 체크 엔드포인트.
-    서버 상태 및 설정 확인용.
+    서버 상태 확인용.
     
     GET /webhook/health/
     """
-    config = get_config()
-    
     return JsonResponse({
         "ok": True,
         "status": "healthy",
-        "trading_enabled": config.enable_trading,
-        "default_symbol": config.trading_symbol,
-        "default_leverage": config.trading_leverage,
-        "default_td_mode": config.trading_td_mode,
-        "default_tp_percent": config.take_profit_percent,
-        "default_sl_percent": config.stop_loss_percent,
-        "is_demo": config.is_demo,
-        "webhook_secret_set": bool(config.webhook_secret),
-        "webhook_secret_length": len(config.webhook_secret) if config.webhook_secret else 0,
+    })
+
+
+@csrf_exempt
+def account_check(request: HttpRequest):
+    """
+    계정 정보 및 잔고 조회 엔드포인트.
+    모든 계정(useYn과 관계없이)의 잔고를 조회합니다.
+    
+    GET /webhook/account-check/
+    """
+    config = get_config()
+    
+    # 모든 계정 목록 (민감 정보 마스킹)
+    accounts_info = []
+    account_balances = []
+    
+    for account in config.accounts:
+        account_name = account.get("name", "unknown")
+        use_yn = account.get("useYn", "n").lower()
+        
+        # 계정 정보 (민감 정보 마스킹)
+        account_copy = account.copy()
+        for key in ["api_key", "secret_key", "passphrase"]:
+            if key in account_copy and account_copy[key]:
+                account_copy[key] = "***" + account_copy[key][-4:] if len(account_copy[key]) > 4 else "****"
+        accounts_info.append(account_copy)
+        
+        # 모든 계정의 잔고 조회 (useYn과 관계없이)
+        try:
+            client = OkxClient.from_account_config(account, config.trading)
+            balance_resp = client.get_balance()
+            
+            # 잔고 정보 파싱
+            balance_data = {
+                "account": account_name,
+                "useYn": use_yn,
+                "status": "success",
+                "balance": None,
+                "error": None,
+            }
+            
+            if balance_resp.get('code') == '0' and balance_resp.get('data'):
+                data = balance_resp['data'][0]
+                details = data.get('details', [])
+                
+                # 각 통화별 잔고 정보
+                currencies = []
+                total_equity = float(data.get('totalEq', '0'))
+                
+                for detail in details:
+                    ccy = detail.get('ccy', '')
+                    avail_bal = float(detail.get('availBal', '0'))
+                    eq = float(detail.get('eq', '0'))
+                    if avail_bal > 0 or eq > 0:
+                        currencies.append({
+                            "currency": ccy,
+                            "available": avail_bal,
+                            "equity": eq,
+                        })
+                
+                balance_data["balance"] = {
+                    "total_equity": total_equity,
+                    "currencies": currencies,
+                }
+            else:
+                balance_data["status"] = "error"
+                balance_data["error"] = balance_resp.get('msg', 'Unknown error')
+                balance_data["raw_response"] = balance_resp
+            
+            account_balances.append(balance_data)
+            
+        except Exception as e:
+            account_balances.append({
+                "account": account_name,
+                "useYn": use_yn,
+                "status": "error",
+                "balance": None,
+                "error": str(e),
+            })
+    
+    # 활성 계정 개수
+    active_accounts = config.get_active_accounts()
+    
+    return JsonResponse({
+        "ok": True,
+        "config": {
+            "trading_enabled": config.enable_trading,
+            "default_symbol": config.trading_symbol,
+            "default_leverage": config.trading_leverage,
+            "default_td_mode": config.trading_td_mode,
+            "default_tp_percent": config.take_profit_percent,
+            "default_sl_percent": config.stop_loss_percent,
+            "webhook_secret_set": bool(config.webhook_secret),
+        },
+        "accounts": accounts_info,
+        "account_names": config.get_account_names(),
+        "active_accounts": len(active_accounts),
+        "active_account_names": [acc.get("name", "unknown") for acc in active_accounts],
+        "balances": account_balances,
     })
 
 
