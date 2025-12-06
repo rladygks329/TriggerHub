@@ -280,7 +280,7 @@ class OkxClient:
         # 필요 증거금 = 계약 가치 / 레버리지
         # 주문 가능 계약 수 = 사용 가능 증거금 / (계약당 USDT 가치 / 레버리지)
         # 안전 마진: 95%만 사용 (기존 포지션, 미체결 주문, 수수료 등 고려)
-        safety_margin = 0.95
+        safety_margin = 0.97
         max_contracts = (available_margin * leverage * safety_margin) / contract_usdt_value
         
         logger.info(f"[OKX] 수량 계산 상세: available_margin={available_margin:.2f}, leverage={leverage}, safety_margin={safety_margin}, contract_usdt_value={contract_usdt_value:.2f}")
