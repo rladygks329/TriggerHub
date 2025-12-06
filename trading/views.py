@@ -210,7 +210,18 @@ def okx_webhook(request: HttpRequest):
     # 함수 진입 확인 (가장 먼저 실행)
     print("=" * 80, flush=True)
     print(f"[OKX_WEBHOOK] 함수 호출됨 | path={request.path} | method={request.method}", flush=True)
+    print(f"[OKX_WEBHOOK] Content-Type: {request.META.get('CONTENT_TYPE', 'N/A')}", flush=True)
+    print(f"[OKX_WEBHOOK] Request body length: {len(request.body)}", flush=True)
     print("=" * 80, flush=True)
+    
+    # POST 메서드 확인 (수동 체크)
+    if request.method != "POST":
+        print(f"[OKX_WEBHOOK] ERROR: Method is {request.method}, not POST", flush=True)
+        return JsonResponse({
+            "ok": False,
+            "error": "method_not_allowed",
+            "message": f"POST 메서드만 허용됩니다. 현재 메서드: {request.method}"
+        }, status=405)
     
     config = get_config()
     
