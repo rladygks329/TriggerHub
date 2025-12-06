@@ -31,11 +31,12 @@ class OkxClient:
         is_demo: bool = False,
         leverage: int = 10,
         td_mode: str = "cross",
+        base_url: str = "https://www.okx.com",
     ):
         self.api_key = api_key
         self.secret_key = secret_key
         self.passphrase = passphrase
-        self.base_url = "https://www.okx.com"
+        self.base_url = base_url
         self.is_demo = is_demo
         self.leverage = leverage
         self.td_mode = td_mode  # cross 또는 isolated
@@ -565,4 +566,26 @@ class OkxClient:
             is_demo=config.is_demo,
             leverage=config.trading_leverage,
             td_mode=config.trading_td_mode,
+        )
+    
+    @classmethod
+    def from_account_config(cls, account_config: Dict[str, Any], trading_config: Dict[str, Any]) -> 'OkxClient':
+        """
+        계정 설정 딕셔너리에서 OkxClient 인스턴스 생성.
+        
+        Args:
+            account_config: 계정 정보 딕셔너리 (api_key, secret_key, passphrase, leverage, td_mode, base_url 등)
+            trading_config: 트레이딩 설정 딕셔너리 (기본 leverage, td_mode 등)
+        
+        Returns:
+            OkxClient 인스턴스
+        """
+        return cls(
+            api_key=account_config.get("api_key", ""),
+            secret_key=account_config.get("secret_key", ""),
+            passphrase=account_config.get("passphrase", ""),
+            is_demo=False,  # useYn으로 관리하므로 항상 False
+            leverage=account_config.get("leverage", trading_config.get("leverage", 10)),
+            td_mode=account_config.get("td_mode", trading_config.get("td_mode", "cross")),
+            base_url=account_config.get("base_url", "https://www.okx.com"),
         )
