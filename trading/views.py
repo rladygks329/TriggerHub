@@ -235,25 +235,35 @@ def okx_webhook(request: HttpRequest):
 
     # 시크릿 키 검증 (설정된 경우)
     if config.webhook_secret:
-        received_secret = payload.get("secret", "")
-        expected_secret = config.webhook_secret
+        received_secret = str(payload.get("secret", "")).strip()
+        expected_secret = str(config.webhook_secret).strip()
         
         # 디버깅 로그 (실제 값은 마스킹)
         log_webhook("SECRET_CHECK", "시크릿 검증 시도", {
             "received_length": len(received_secret),
             "expected_length": len(expected_secret),
+            "received_first4": received_secret[:4] if len(received_secret) >= 4 else received_secret,
+            "expected_first4": expected_secret[:4] if len(expected_secret) >= 4 else expected_secret,
             "match": received_secret == expected_secret,
+            "received_repr": repr(received_secret),
+            "expected_repr": repr(expected_secret),
         })
         
         if received_secret != expected_secret:
             log_webhook("SECRET_MISMATCH", "시크릿 불일치", {
-                "received": received_secret[:4] + "***" if len(received_secret) > 4 else "***",
-                "expected": expected_secret[:4] + "***" if len(expected_secret) > 4 else "***",
+                "received_length": len(received_secret),
+                "expected_length": len(expected_secret),
+                "received_first4": received_secret[:4] if len(received_secret) >= 4 else received_secret,
+                "expected_first4": expected_secret[:4] if len(expected_secret) >= 4 else expected_secret,
             })
             return JsonResponse({
                 "ok": False,
                 "error": "invalid_secret",
-                "message": "웹훅 시크릿이 일치하지 않습니다. config.json의 webhook_secret을 확인하세요."
+                "message": "웹훅 시크릿이 일치하지 않습니다. config.json의 webhook_secret을 확인하세요.",
+                "debug": {
+                    "received_length": len(received_secret),
+                    "expected_length": len(expected_secret),
+                }
             }, status=403)
 
     # 신호 파싱
