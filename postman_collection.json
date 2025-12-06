@@ -1,0 +1,110 @@
+{
+  "info": {
+    "name": "OKX Auto Trading API",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "1. 헬스 체크",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "http://YOUR_SERVER_IP/webhook/health/",
+          "protocol": "http",
+          "host": ["YOUR_SERVER_IP"],
+          "path": ["webhook", "health", ""]
+        }
+      }
+    },
+    {
+      "name": "2. 웹훅 테스트 (주문 없음)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"secret\": \"test_webhook_secret\",\n  \"action\": \"buy\",\n  \"symbol\": \"ETHUSDT\"\n}"
+        },
+        "url": {
+          "raw": "http://YOUR_SERVER_IP/webhook/test/",
+          "protocol": "http",
+          "host": ["YOUR_SERVER_IP"],
+          "path": ["webhook", "test", ""]
+        }
+      }
+    },
+    {
+      "name": "3. 실제 주문 - 소액 매수 (0.1 계약)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"secret\": \"test_webhook_secret\",\n  \"action\": \"buy\",\n  \"symbol\": \"ETHUSDT\",\n  \"size\": \"0.1\",\n  \"use_full_balance\": false,\n  \"leverage\": 10,\n  \"tp\": 2.3,\n  \"sl\": 0.7\n}"
+        },
+        "url": {
+          "raw": "http://YOUR_SERVER_IP/webhook/okx/",
+          "protocol": "http",
+          "host": ["YOUR_SERVER_IP"],
+          "path": ["webhook", "okx", ""]
+        }
+      }
+    },
+    {
+      "name": "4. 실제 주문 - 소액 매도 (0.1 계약)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"secret\": \"test_webhook_secret\",\n  \"action\": \"sell\",\n  \"symbol\": \"ETHUSDT\",\n  \"size\": \"0.1\",\n  \"use_full_balance\": false,\n  \"leverage\": 10,\n  \"tp\": 2.3,\n  \"sl\": 0.7\n}"
+        },
+        "url": {
+          "raw": "http://YOUR_SERVER_IP/webhook/okx/",
+          "protocol": "http",
+          "host": ["YOUR_SERVER_IP"],
+          "path": ["webhook", "okx", ""]
+        }
+      }
+    },
+    {
+      "name": "5. 실제 주문 - 전체 잔고 사용",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"secret\": \"test_webhook_secret\",\n  \"action\": \"buy\",\n  \"symbol\": \"ETHUSDT\",\n  \"use_full_balance\": true,\n  \"leverage\": 10\n}"
+        },
+        "url": {
+          "raw": "http://YOUR_SERVER_IP/webhook/okx/",
+          "protocol": "http",
+          "host": ["YOUR_SERVER_IP"],
+          "path": ["webhook", "okx", ""]
+        }
+      }
+    }
+  ]
+}
+
