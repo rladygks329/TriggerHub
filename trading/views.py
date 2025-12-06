@@ -414,7 +414,8 @@ def okx_webhook(request: HttpRequest):
 def health_check(request: HttpRequest):
         # 트레이딩 활성화 확인
     log_webhook("health_check", "TEST", {
-        "message": "test"
+        "message": "test",
+        "자동배포": "자동배포 확인"
     })
     print("health_check");
     """
