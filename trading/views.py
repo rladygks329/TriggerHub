@@ -210,7 +210,16 @@ def okx_webhook(request: HttpRequest):
     config = get_config()
     
     # 트레이딩 활성화 확인
+    log_webhook("WEBHOOK_REQUEST", "웹훅 요청 수신", {
+        "path": request.path,
+        "method": request.method,
+        "enable_trading": config.enable_trading,
+    })
+    
     if not config.enable_trading:
+        log_webhook("TRADING_DISABLED", "거래 비활성화 상태", {
+            "enable_trading": config.enable_trading,
+        })
         return JsonResponse({
             "ok": False,
             "error": "trading_disabled",
@@ -226,8 +235,26 @@ def okx_webhook(request: HttpRequest):
 
     # 시크릿 키 검증 (설정된 경우)
     if config.webhook_secret:
-        if payload.get("secret") != config.webhook_secret:
-            return JsonResponse({"ok": False, "error": "invalid_secret"}, status=403)
+        received_secret = payload.get("secret", "")
+        expected_secret = config.webhook_secret
+        
+        # 디버깅 로그 (실제 값은 마스킹)
+        log_webhook("SECRET_CHECK", "시크릿 검증 시도", {
+            "received_length": len(received_secret),
+            "expected_length": len(expected_secret),
+            "match": received_secret == expected_secret,
+        })
+        
+        if received_secret != expected_secret:
+            log_webhook("SECRET_MISMATCH", "시크릿 불일치", {
+                "received": received_secret[:4] + "***" if len(received_secret) > 4 else "***",
+                "expected": expected_secret[:4] + "***" if len(expected_secret) > 4 else "***",
+            })
+            return JsonResponse({
+                "ok": False,
+                "error": "invalid_secret",
+                "message": "웹훅 시크릿이 일치하지 않습니다. config.json의 webhook_secret을 확인하세요."
+            }, status=403)
 
     # 신호 파싱
     try:
@@ -366,6 +393,8 @@ def health_check(request: HttpRequest):
         "default_tp_percent": config.take_profit_percent,
         "default_sl_percent": config.stop_loss_percent,
         "is_demo": config.is_demo,
+        "webhook_secret_set": bool(config.webhook_secret),
+        "webhook_secret_length": len(config.webhook_secret) if config.webhook_secret else 0,
     })
 
 

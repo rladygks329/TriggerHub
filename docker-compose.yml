@@ -10,6 +10,8 @@ services:
     volumes:
       # DB 파일 영속화 (선택사항)
       - ./data:/app/data
+      # 로그 파일 영속화
+      - ./logs:/app/logs
     restart: unless-stopped
 
   nginx:
