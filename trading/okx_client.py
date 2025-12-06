@@ -126,7 +126,7 @@ class OkxClient:
         if resp.get('code') == '0' and resp.get('data') and len(resp['data']) > 0:
             inst_info = resp['data'][0]
             # 디버깅: 실제 OKX에서 받은 lot size 값 로깅
-            print(f"[OKX] Instrument 정보 조회: instId={inst_id}, lotSz={inst_info.get('lotSz')}, minSz={inst_info.get('minSz')}, ctVal={inst_info.get('ctVal')}")
+            print(f"[OKX] Instrument 정보 조회: instId={inst_id}, lotSz={inst_info.get('lotSz')}, minSz={inst_info.get('minSz')}, ctVal={inst_info.get('ctVal')}", flush=True)
             return inst_info
         raise ValueError(f"Instrument 정보 조회 실패: {inst_id}")
 
@@ -146,10 +146,10 @@ class OkxClient:
             - lot size = 0.1, quantity = 0.1 → 0.1 (1 * 0.1)
             - lot size = 0.001, quantity = 0.123 → 0.123 (123 * 0.001)
         """
-        print(f"[OKX] round_to_lot_size 호출: quantity={quantity}, inst_id={inst_id}")
+        print(f"[OKX] round_to_lot_size 호출: quantity={quantity}, inst_id={inst_id}", flush=True)
         try:
             # Instrument 정보에서 lot size 가져오기
-            print(f"[OKX] Instrument 정보 조회 시작: {inst_id}")
+            print(f"[OKX] Instrument 정보 조회 시작: {inst_id}", flush=True)
             inst_info = self.get_instrument_info(inst_id)
             lot_sz = Decimal(str(inst_info.get('lotSz', '0.001')))  # 기본값 0.001
             min_sz = Decimal(str(inst_info.get('minSz', '0.001')))  # 최소 주문 수량
@@ -158,7 +158,7 @@ class OkxClient:
             qty = Decimal(str(quantity))
             
             # 디버깅 로그
-            print(f"[OKX] Lot size 반올림: 원본={qty}, lot_sz={lot_sz}, min_sz={min_sz}")
+            print(f"[OKX] Lot size 반올림: 원본={qty}, lot_sz={lot_sz}, min_sz={min_sz}", flush=True)
             
             # lot size의 배수로 내림 (예: 0.401 / 0.1 = 4.01 → 4 → 4 * 0.1 = 0.4)
             if lot_sz > 0:
@@ -169,23 +169,23 @@ class OkxClient:
             
             # 최소 주문 수량 확인
             if rounded < min_sz:
-                print(f"[OKX] ⚠️ 반올림된 수량({rounded})이 최소 수량({min_sz})보다 작음, 최소 수량 사용")
+                print(f"[OKX] ⚠️ 반올림된 수량({rounded})이 최소 수량({min_sz})보다 작음, 최소 수량 사용", flush=True)
                 rounded = min_sz
             
-            print(f"[OKX] ✅ Lot size 반올림 결과: {qty} → {rounded} (lot_sz={lot_sz}, min_sz={min_sz}, 배수={multiplier if lot_sz > 0 else 'N/A'})")
+            print(f"[OKX] ✅ Lot size 반올림 결과: {qty} → {rounded} (lot_sz={lot_sz}, min_sz={min_sz}, 배수={multiplier if lot_sz > 0 else 'N/A'})", flush=True)
             return str(rounded)
         except Exception as e:
             # 실패 시 기본값 0.001로 반올림
             import traceback
-            print(f"[OKX] ❌ Lot size 반올림 실패, 기본값 사용: {e}")
-            print(f"[OKX] 예외 상세: {traceback.format_exc()}")
+            print(f"[OKX] ❌ Lot size 반올림 실패, 기본값 사용: {e}", flush=True)
+            print(f"[OKX] 예외 상세: {traceback.format_exc()}", flush=True)
             qty = Decimal(str(quantity))
             lot_sz = Decimal('0.001')
             multiplier = (qty / lot_sz).quantize(Decimal('1'), rounding=ROUND_DOWN)
             rounded = multiplier * lot_sz
             if rounded < Decimal('0.001'):
                 rounded = Decimal('0.001')
-            print(f"[OKX] 기본값 사용 결과: {qty} → {rounded}")
+            print(f"[OKX] 기본값 사용 결과: {qty} → {rounded}", flush=True)
             return str(rounded)
 
     # ============================================
@@ -434,12 +434,14 @@ class OkxClient:
             print(f"[OKX] 레버리지 설정 경고: {e}")
 
         # 2. 주문 수량을 lot size에 맞게 반올림
-        print(f"[OKX] 주문 수량 반올림 시작: 원본={sz}, inst_id={inst_id}")
+        print(f"[OKX] 주문 수량 반올림 시작: 원본={sz}, inst_id={inst_id}", flush=True)
         try:
             sz_rounded = self.round_to_lot_size(sz, inst_id)
-            print(f"[OKX] 주문 수량 반올림 완료: {sz} → {sz_rounded}")
+            print(f"[OKX] 주문 수량 반올림 완료: {sz} → {sz_rounded}", flush=True)
         except Exception as e:
-            print(f"[OKX] ⚠️ 주문 수량 반올림 실패: {e}, 원본 수량 사용")
+            import traceback
+            print(f"[OKX] ⚠️ 주문 수량 반올림 실패: {e}, 원본 수량 사용", flush=True)
+            print(f"[OKX] 예외 상세: {traceback.format_exc()}", flush=True)
             sz_rounded = sz  # 실패 시 원본 사용
         
         # 3. 주문 실행
