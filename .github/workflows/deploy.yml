@@ -1,0 +1,59 @@
+name: Deploy to EC2
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.EC2_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H ${{ secrets.EC2_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Deploy to EC2
+        env:
+          EC2_HOST: ${{ secrets.EC2_HOST }}
+          EC2_USER: ${{ secrets.EC2_USER }}
+        run: |
+          ssh -i ~/.ssh/deploy_key ${EC2_USER}@${EC2_HOST} << 'EOF'
+            set -e
+            cd /home/ubuntu/opt/TriggerHub
+            
+            # Git pull
+            git fetch origin
+            git reset --hard origin/main
+            
+            # 실행 권한 부여 및 Docker 재빌드 및 재시작
+            chmod +x rebuild.sh
+            ./rebuild.sh
+            
+            # Health check
+            sleep 10
+            curl -f http://localhost/webhook/health/ || exit 1
+            
+            echo "Deployment completed successfully!"
+          EOF
+
+      - name: Send Discord notification
+        if: always()
+        uses: sarisia/actions-status-discord@v1
+        with:
+          webhook: ${{ secrets.DISCORD_WEBHOOK }}
+          title: "TriggerHub 배포"
+          description: |
+            브랜치: ${{ github.ref_name }}
+            커밋: ${{ github.sha }}
+            상태: ${{ job.status }}
+          username: "GitHub Actions"
+          avatar_url: "https://github.com/github.png"

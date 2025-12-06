@@ -225,25 +225,10 @@ class OkxClient:
         """USDT 사용 가능 잔고 반환"""
         resp = self.get_balance()
         if resp.get('code') == '0' and resp.get('data'):
-            account_data = resp['data'][0]
-            details = account_data.get('details', [])
-            
-            # Cross margin 모드에서는 availEq 사용 (기존 포지션 고려)
-            # Isolated margin 모드에서는 availBal 사용
+            details = resp['data'][0]['details']
             for detail in details:
                 if detail['ccy'] == 'USDT':
-                    avail_bal = float(detail.get('availBal', 0))
-                    # Cross margin의 경우 availEq도 확인
-                    avail_eq = float(account_data.get('availEq', 0))
-                    
-                    logger.info(f"[OKX] 잔고 조회: availBal={avail_bal}, availEq={avail_eq}, eq={account_data.get('eq', 0)}")
-                    print(f"[OKX] 잔고 조회: availBal={avail_bal}, availEq={avail_eq}, eq={account_data.get('eq', 0)}", flush=True)
-                    
-                    # Cross margin 모드에서는 availEq 사용 (더 정확)
-                    # availEq는 USDT 단위로 반환됨
-                    if self.td_mode == "cross" and avail_eq > 0:
-                        return avail_eq
-                    return avail_bal
+                    return float(detail['availBal'])
         return 0.0
 
     def calculate_order_size(
@@ -294,12 +279,7 @@ class OkxClient:
         # 6. 레버리지 적용하여 주문 가능 계약 수 계산
         # 필요 증거금 = 계약 가치 / 레버리지
         # 주문 가능 계약 수 = 사용 가능 증거금 / (계약당 USDT 가치 / 레버리지)
-        # 안전 마진: 95%만 사용 (기존 포지션, 미체결 주문 등 고려)
-        safety_margin = 0.95
-        max_contracts = (available_margin * leverage * safety_margin) / contract_usdt_value
-        
-        logger.info(f"[OKX] 수량 계산 상세: available_margin={available_margin:.2f}, leverage={leverage}, safety_margin={safety_margin}, contract_usdt_value={contract_usdt_value:.2f}")
-        print(f"[OKX] 수량 계산 상세: available_margin={available_margin:.2f}, leverage={leverage}, safety_margin={safety_margin}, contract_usdt_value={contract_usdt_value:.2f}", flush=True)
+        max_contracts = (available_margin * leverage) / contract_usdt_value
         
         # 7. lot size에 맞게 반올림
         contracts_str = str(max_contracts)
@@ -324,7 +304,7 @@ class OkxClient:
             return contracts_rounded
         except Exception as e:
             import traceback
-            logger.error(f"[OKX] 수량 계산 중 오류: {e}\n{traceback.format_exc()}")
+            logger.error(f"[OKX] ❌ 수량 계산 중 오류: {e}\n{traceback.format_exc()}")
             print(f"[OKX] ❌ 수량 계산 중 오류: {e}", flush=True)
             print(f"[OKX] 예외 상세: {traceback.format_exc()}", flush=True)
             raise

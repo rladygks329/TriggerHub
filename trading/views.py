@@ -412,6 +412,12 @@ def okx_webhook(request: HttpRequest):
 
 @csrf_exempt
 def health_check(request: HttpRequest):
+        # 트레이딩 활성화 확인
+    log_webhook("health_check", "TEST", {
+        "message": "test",
+        "자동배포": "자동배포 확인"
+    })
+    print("health_check");
     """
     헬스 체크 엔드포인트.
     서버 상태 및 설정 확인용.
