@@ -146,8 +146,10 @@ class OkxClient:
             - lot size = 0.1, quantity = 0.1 → 0.1 (1 * 0.1)
             - lot size = 0.001, quantity = 0.123 → 0.123 (123 * 0.001)
         """
+        print(f"[OKX] round_to_lot_size 호출: quantity={quantity}, inst_id={inst_id}")
         try:
             # Instrument 정보에서 lot size 가져오기
+            print(f"[OKX] Instrument 정보 조회 시작: {inst_id}")
             inst_info = self.get_instrument_info(inst_id)
             lot_sz = Decimal(str(inst_info.get('lotSz', '0.001')))  # 기본값 0.001
             min_sz = Decimal(str(inst_info.get('minSz', '0.001')))  # 최소 주문 수량
@@ -174,7 +176,9 @@ class OkxClient:
             return str(rounded)
         except Exception as e:
             # 실패 시 기본값 0.001로 반올림
-            print(f"[OKX] Lot size 반올림 실패, 기본값 사용: {e}")
+            import traceback
+            print(f"[OKX] ❌ Lot size 반올림 실패, 기본값 사용: {e}")
+            print(f"[OKX] 예외 상세: {traceback.format_exc()}")
             qty = Decimal(str(quantity))
             lot_sz = Decimal('0.001')
             multiplier = (qty / lot_sz).quantize(Decimal('1'), rounding=ROUND_DOWN)
@@ -430,7 +434,13 @@ class OkxClient:
             print(f"[OKX] 레버리지 설정 경고: {e}")
 
         # 2. 주문 수량을 lot size에 맞게 반올림
-        sz_rounded = self.round_to_lot_size(sz, inst_id)
+        print(f"[OKX] 주문 수량 반올림 시작: 원본={sz}, inst_id={inst_id}")
+        try:
+            sz_rounded = self.round_to_lot_size(sz, inst_id)
+            print(f"[OKX] 주문 수량 반올림 완료: {sz} → {sz_rounded}")
+        except Exception as e:
+            print(f"[OKX] ⚠️ 주문 수량 반올림 실패: {e}, 원본 수량 사용")
+            sz_rounded = sz  # 실패 시 원본 사용
         
         # 3. 주문 실행
         if tp_percent is not None or sl_percent is not None:
