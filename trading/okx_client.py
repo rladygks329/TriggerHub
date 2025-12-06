@@ -92,7 +92,14 @@ class OkxClient:
             resp = requests.post(url, headers=headers, json=body, timeout=10)
         
         resp.raise_for_status()
-        return resp.json()
+        response_json = resp.json()
+        
+        # 주문 응답 로깅
+        if "/trade/order" in path:
+            logger.info(f"[OKX] 주문 응답: {json.dumps(response_json, indent=2)}")
+            print(f"[OKX] 주문 응답: {json.dumps(response_json, indent=2)}", flush=True)
+        
+        return response_json
 
     # ============================================
     # 시세 조회
@@ -389,6 +396,9 @@ class OkxClient:
             "ordType": "market",
             "sz": sz,
         }
+        
+        logger.info(f"[OKX] 주문 요청 body: {body}")
+        print(f"[OKX] 주문 요청 body: {json.dumps(body, indent=2)}", flush=True)
 
         # TP/SL이 설정된 경우 현재 가격 기반으로 계산
         if tp_percent is not None or sl_percent is not None:
