@@ -49,8 +49,8 @@ def log_webhook(log_type: str, message: str, data: dict = None):
     # 파일에 기록
     webhook_logger.info(log_line)
     
-    # 콘솔에도 출력
-    print(log_line)
+    # 콘솔에도 출력 (즉시 flush)
+    print(log_line, flush=True)
 
 
 # 웹훅 테스트 로그 저장 (메모리)
