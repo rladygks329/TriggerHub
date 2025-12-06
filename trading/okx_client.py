@@ -2,11 +2,15 @@ import base64
 import hashlib
 import hmac
 import json
+import logging
 from datetime import datetime, timezone
 from decimal import Decimal, ROUND_DOWN
 from typing import Any, Dict, List, Optional, TYPE_CHECKING
 
 import requests
+
+# 로거 설정
+logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from .config import Config
@@ -146,9 +150,11 @@ class OkxClient:
             - lot size = 0.1, quantity = 0.1 → 0.1 (1 * 0.1)
             - lot size = 0.001, quantity = 0.123 → 0.123 (123 * 0.001)
         """
+        logger.info(f"[OKX] round_to_lot_size 호출: quantity={quantity}, inst_id={inst_id}")
         print(f"[OKX] round_to_lot_size 호출: quantity={quantity}, inst_id={inst_id}", flush=True)
         try:
             # Instrument 정보에서 lot size 가져오기
+            logger.info(f"[OKX] Instrument 정보 조회 시작: {inst_id}")
             print(f"[OKX] Instrument 정보 조회 시작: {inst_id}", flush=True)
             inst_info = self.get_instrument_info(inst_id)
             lot_sz = Decimal(str(inst_info.get('lotSz', '0.001')))  # 기본값 0.001
@@ -158,6 +164,7 @@ class OkxClient:
             qty = Decimal(str(quantity))
             
             # 디버깅 로그
+            logger.info(f"[OKX] Lot size 반올림: 원본={qty}, lot_sz={lot_sz}, min_sz={min_sz}")
             print(f"[OKX] Lot size 반올림: 원본={qty}, lot_sz={lot_sz}, min_sz={min_sz}", flush=True)
             
             # lot size의 배수로 내림 (예: 0.401 / 0.1 = 4.01 → 4 → 4 * 0.1 = 0.4)
@@ -168,10 +175,21 @@ class OkxClient:
                 rounded = qty
             
             # 최소 주문 수량 확인
+            # 주의: minSz는 최소 주문 수량이지만, lot size의 배수여야 함
+            # 예: lotSz=0.001, minSz=0.1이면, 최소 주문은 0.1 (100 * 0.001)
             if rounded < min_sz:
-                print(f"[OKX] ⚠️ 반올림된 수량({rounded})이 최소 수량({min_sz})보다 작음, 최소 수량 사용", flush=True)
-                rounded = min_sz
+                # minSz를 lot size의 배수로 올림
+                if lot_sz > 0:
+                    min_multiplier = (min_sz / lot_sz).quantize(Decimal('1'), rounding=ROUND_DOWN)
+                    if (min_sz / lot_sz) % 1 != 0:
+                        min_multiplier += 1  # 올림
+                    rounded = min_multiplier * lot_sz
+                    print(f"[OKX] ⚠️ 반올림된 수량({rounded})이 최소 수량({min_sz})보다 작음, lot size 배수로 조정: {rounded}", flush=True)
+                else:
+                    rounded = min_sz
+                    print(f"[OKX] ⚠️ 반올림된 수량({rounded})이 최소 수량({min_sz})보다 작음, 최소 수량 사용", flush=True)
             
+            logger.info(f"[OKX] ✅ Lot size 반올림 결과: {qty} → {rounded} (lot_sz={lot_sz}, min_sz={min_sz}, 배수={multiplier if lot_sz > 0 else 'N/A'})")
             print(f"[OKX] ✅ Lot size 반올림 결과: {qty} → {rounded} (lot_sz={lot_sz}, min_sz={min_sz}, 배수={multiplier if lot_sz > 0 else 'N/A'})", flush=True)
             return str(rounded)
         except Exception as e:
@@ -444,12 +462,15 @@ class OkxClient:
             print(f"[OKX] 레버리지 설정 경고: {e}")
 
         # 2. 주문 수량을 lot size에 맞게 반올림
+        logger.info(f"[OKX] 주문 수량 반올림 시작: 원본={sz}, inst_id={inst_id}")
         print(f"[OKX] 주문 수량 반올림 시작: 원본={sz}, inst_id={inst_id}", flush=True)
         try:
             sz_rounded = self.round_to_lot_size(sz, inst_id)
+            logger.info(f"[OKX] 주문 수량 반올림 완료: {sz} → {sz_rounded}")
             print(f"[OKX] 주문 수량 반올림 완료: {sz} → {sz_rounded}", flush=True)
         except Exception as e:
             import traceback
+            logger.error(f"[OKX] ⚠️ 주문 수량 반올림 실패: {e}, 원본 수량 사용\n{traceback.format_exc()}")
             print(f"[OKX] ⚠️ 주문 수량 반올림 실패: {e}, 원본 수량 사용", flush=True)
             print(f"[OKX] 예외 상세: {traceback.format_exc()}", flush=True)
             sz_rounded = sz  # 실패 시 원본 사용
