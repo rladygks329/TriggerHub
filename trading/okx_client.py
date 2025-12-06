@@ -375,6 +375,7 @@ class OkxClient:
         # TP/SL이 설정된 경우 현재 가격 기반으로 계산
         if tp_percent is not None or sl_percent is not None:
             current_price = self.get_last_price(inst_id)
+            print(f"[OKX] TP/SL 계산 시작: 현재가={current_price}, tp_percent={tp_percent}, sl_percent={sl_percent}, side={side}", flush=True)
 
             attach_algo: Dict[str, str] = {}
 
@@ -386,9 +387,11 @@ class OkxClient:
                     tp_price = current_price * (1 - Decimal(str(tp_percent)) / 100)
 
                 # 소수점 적절히 처리 (가격에 따라 조정 필요할 수 있음)
-                attach_algo["tpTriggerPx"] = str(tp_price.quantize(Decimal("0.01"), rounding=ROUND_DOWN))
+                tp_trigger_px = str(tp_price.quantize(Decimal("0.01"), rounding=ROUND_DOWN))
+                attach_algo["tpTriggerPx"] = tp_trigger_px
                 attach_algo["tpOrdPx"] = "-1"  # 시장가로 체결
                 attach_algo["tpTriggerPxType"] = "last"  # 마지막 체결가 기준
+                print(f"[OKX] ✅ TP 설정: {current_price} → {tp_trigger_px} (+{tp_percent}%)", flush=True)
 
             if sl_percent is not None:
                 # 매수: 가격 하락이 손실 / 매도: 가격 상승이 손실
@@ -397,12 +400,17 @@ class OkxClient:
                 else:
                     sl_price = current_price * (1 + Decimal(str(sl_percent)) / 100)
 
-                attach_algo["slTriggerPx"] = str(sl_price.quantize(Decimal("0.01"), rounding=ROUND_DOWN))
+                sl_trigger_px = str(sl_price.quantize(Decimal("0.01"), rounding=ROUND_DOWN))
+                attach_algo["slTriggerPx"] = sl_trigger_px
                 attach_algo["slOrdPx"] = "-1"  # 시장가로 체결
                 attach_algo["slTriggerPxType"] = "last"  # 마지막 체결가 기준
+                print(f"[OKX] ✅ SL 설정: {current_price} → {sl_trigger_px} (-{sl_percent}%)", flush=True)
 
             if attach_algo:
                 body["attachAlgoOrds"] = [attach_algo]
+                print(f"[OKX] TP/SL 주문 첨부: {attach_algo}", flush=True)
+            else:
+                print(f"[OKX] ⚠️ TP/SL 주문이 첨부되지 않음", flush=True)
 
         return self._request("POST", path, body)
 
