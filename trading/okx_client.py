@@ -283,22 +283,31 @@ class OkxClient:
         
         # 7. lot size에 맞게 반올림
         contracts_str = str(max_contracts)
+        logger.info(f"[OKX] 수량 계산: 잔고=${usdt_balance:.2f}, 현재가=${current_price:.2f}, 레버리지={leverage}x, 계산된 계약수={max_contracts:.6f} (반올림 전)")
         print(f"[OKX] 수량 계산: 잔고=${usdt_balance:.2f}, 현재가=${current_price:.2f}, "
-              f"레버리지={leverage}x, 계산된 계약수={max_contracts:.6f} (반올림 전)")
+              f"레버리지={leverage}x, 계산된 계약수={max_contracts:.6f} (반올림 전)", flush=True)
         
-        contracts_rounded = self.round_to_lot_size(contracts_str, inst_id)
-        contracts = float(contracts_rounded)
-        
-        # 최소 수량은 lot size 반올림 후 확인 (round_to_lot_size에서 이미 처리됨)
-        if contracts <= 0:
-            raise ValueError(
-                f"잔고 부족: USDT {usdt_balance:.2f}, "
-                f"계산된 계약 수량이 0 이하입니다."
-            )
-        
-        print(f"[OKX] 수량 계산 완료: 최종 계약수={contracts:.6f} (lot size 반올림 후)")
-        
-        return contracts_rounded
+        try:
+            contracts_rounded = self.round_to_lot_size(contracts_str, inst_id)
+            contracts = float(contracts_rounded)
+            
+            # 최소 수량은 lot size 반올림 후 확인 (round_to_lot_size에서 이미 처리됨)
+            if contracts <= 0:
+                raise ValueError(
+                    f"잔고 부족: USDT {usdt_balance:.2f}, "
+                    f"계산된 계약 수량이 0 이하입니다."
+                )
+            
+            logger.info(f"[OKX] 수량 계산 완료: 최종 계약수={contracts:.6f} (lot size 반올림 후)")
+            print(f"[OKX] 수량 계산 완료: 최종 계약수={contracts:.6f} (lot size 반올림 후)", flush=True)
+            
+            return contracts_rounded
+        except Exception as e:
+            import traceback
+            logger.error(f"[OKX] 수량 계산 중 오류: {e}\n{traceback.format_exc()}")
+            print(f"[OKX] ❌ 수량 계산 중 오류: {e}", flush=True)
+            print(f"[OKX] 예외 상세: {traceback.format_exc()}", flush=True)
+            raise
 
     # ============================================
     # 레버리지 설정
