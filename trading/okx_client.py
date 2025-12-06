@@ -124,7 +124,10 @@ class OkxClient:
         path = f'/api/v5/public/instruments?instType=SWAP&instId={inst_id}'
         resp = self._request("GET", path)
         if resp.get('code') == '0' and resp.get('data') and len(resp['data']) > 0:
-            return resp['data'][0]
+            inst_info = resp['data'][0]
+            # 디버깅: 실제 OKX에서 받은 lot size 값 로깅
+            print(f"[OKX] Instrument 정보 조회: instId={inst_id}, lotSz={inst_info.get('lotSz')}, minSz={inst_info.get('minSz')}, ctVal={inst_info.get('ctVal')}")
+            return inst_info
         raise ValueError(f"Instrument 정보 조회 실패: {inst_id}")
 
     def round_to_lot_size(self, quantity: str, inst_id: str) -> str:
@@ -164,10 +167,10 @@ class OkxClient:
             
             # 최소 주문 수량 확인
             if rounded < min_sz:
-                print(f"[OKX] 반올림된 수량({rounded})이 최소 수량({min_sz})보다 작음, 최소 수량 사용")
+                print(f"[OKX] ⚠️ 반올림된 수량({rounded})이 최소 수량({min_sz})보다 작음, 최소 수량 사용")
                 rounded = min_sz
             
-            print(f"[OKX] Lot size 반올림 결과: {qty} → {rounded} (lot_sz={lot_sz}, 배수={multiplier if lot_sz > 0 else 'N/A'})")
+            print(f"[OKX] ✅ Lot size 반올림 결과: {qty} → {rounded} (lot_sz={lot_sz}, min_sz={min_sz}, 배수={multiplier if lot_sz > 0 else 'N/A'})")
             return str(rounded)
         except Exception as e:
             # 실패 시 기본값 0.001로 반올림
@@ -251,18 +254,20 @@ class OkxClient:
         
         # 7. lot size에 맞게 반올림
         contracts_str = str(max_contracts)
+        print(f"[OKX] 수량 계산: 잔고=${usdt_balance:.2f}, 현재가=${current_price:.2f}, "
+              f"레버리지={leverage}x, 계산된 계약수={max_contracts:.6f} (반올림 전)")
+        
         contracts_rounded = self.round_to_lot_size(contracts_str, inst_id)
         contracts = float(contracts_rounded)
         
-        if contracts < 0.001:
+        # 최소 수량은 lot size 반올림 후 확인 (round_to_lot_size에서 이미 처리됨)
+        if contracts <= 0:
             raise ValueError(
                 f"잔고 부족: USDT {usdt_balance:.2f}, "
-                f"최소 주문 수량(0.001 계약)을 위해 필요한 증거금: "
-                f"${contract_usdt_value / leverage * 0.001:.4f}"
+                f"계산된 계약 수량이 0 이하입니다."
             )
         
-        print(f"[OKX] 수량 계산: 잔고=${usdt_balance:.2f}, 현재가=${current_price:.2f}, "
-              f"레버리지={leverage}x, 계약수={contracts:.3f} (lot size 반올림 후)")
+        print(f"[OKX] 수량 계산 완료: 최종 계약수={contracts:.6f} (lot size 반올림 후)")
         
         return contracts_rounded
 
