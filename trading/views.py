@@ -327,6 +327,14 @@ def okx_webhook(request: HttpRequest):
         })
         
         # 레버리지 설정 후 TP/SL 포함 주문 실행
+        log_webhook("CALLING_PLACE_ORDER", "place_order_with_leverage 호출 시작", {
+            "symbol": signal["symbol"],
+            "side": signal["side"],
+            "size": signal["size"],
+            "leverage": signal["leverage"],
+            "tp_percent": signal["tp_percent"],
+            "sl_percent": signal["sl_percent"],
+        })
         resp = client.place_order_with_leverage(
             inst_id=signal["symbol"],
             side=signal["side"],
@@ -336,6 +344,9 @@ def okx_webhook(request: HttpRequest):
             sl_percent=signal["sl_percent"],
             td_mode=signal["td_mode"],
         )
+        log_webhook("CALLED_PLACE_ORDER", "place_order_with_leverage 호출 완료", {
+            "response_code": resp.get("code") if isinstance(resp, dict) else "unknown",
+        })
         
         # 응답 처리
         if client.is_success(resp):
