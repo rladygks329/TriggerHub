@@ -119,6 +119,52 @@ class OkxClient:
             }
         raise ValueError(f"가격 조회 실패: {inst_id}")
 
+    def get_instrument_info(self, inst_id: str) -> Dict[str, Any]:
+        """Instrument 정보 조회 (lot size 등)"""
+        path = f'/api/v5/public/instruments?instType=SWAP&instId={inst_id}'
+        resp = self._request("GET", path)
+        if resp.get('code') == '0' and resp.get('data') and len(resp['data']) > 0:
+            return resp['data'][0]
+        raise ValueError(f"Instrument 정보 조회 실패: {inst_id}")
+
+    def round_to_lot_size(self, quantity: str, inst_id: str) -> str:
+        """
+        주문 수량을 lot size의 배수로 반올림.
+        
+        Args:
+            quantity: 주문 수량 (문자열)
+            inst_id: 거래 상품 (예: ETH-USDT-SWAP)
+        
+        Returns:
+            lot size의 배수로 반올림된 수량 (문자열)
+        """
+        try:
+            # Instrument 정보에서 lot size 가져오기
+            inst_info = self.get_instrument_info(inst_id)
+            lot_sz = Decimal(inst_info.get('lotSz', '0.001'))  # 기본값 0.001
+            
+            # 수량을 Decimal로 변환
+            qty = Decimal(str(quantity))
+            
+            # lot size의 배수로 반올림
+            rounded = (qty / lot_sz).quantize(Decimal('1'), rounding=ROUND_DOWN) * lot_sz
+            
+            # 최소 주문 수량 확인
+            min_sz = Decimal(inst_info.get('minSz', '0.001'))
+            if rounded < min_sz:
+                rounded = min_sz
+            
+            return str(rounded)
+        except Exception as e:
+            # 실패 시 기본값 0.001로 반올림
+            print(f"[OKX] Lot size 반올림 실패, 기본값 사용: {e}")
+            qty = Decimal(str(quantity))
+            lot_sz = Decimal('0.001')
+            rounded = (qty / lot_sz).quantize(Decimal('1'), rounding=ROUND_DOWN) * lot_sz
+            if rounded < Decimal('0.001'):
+                rounded = Decimal('0.001')
+            return str(rounded)
+
     # ============================================
     # 잔고 조회
     # ============================================
@@ -187,8 +233,10 @@ class OkxClient:
         # 주문 가능 계약 수 = 사용 가능 증거금 / (계약당 USDT 가치 / 레버리지)
         max_contracts = (available_margin * leverage) / contract_usdt_value
         
-        # 7. 소수점 내림 (0.001 단위)
-        contracts = int(max_contracts * 1000) / 1000  # 0.001 단위로 내림
+        # 7. lot size에 맞게 반올림
+        contracts_str = str(max_contracts)
+        contracts_rounded = self.round_to_lot_size(contracts_str, inst_id)
+        contracts = float(contracts_rounded)
         
         if contracts < 0.001:
             raise ValueError(
@@ -198,9 +246,9 @@ class OkxClient:
             )
         
         print(f"[OKX] 수량 계산: 잔고=${usdt_balance:.2f}, 현재가=${current_price:.2f}, "
-              f"레버리지={leverage}x, 계약수={contracts:.3f}")
+              f"레버리지={leverage}x, 계약수={contracts:.3f} (lot size 반올림 후)")
         
-        return str(contracts)
+        return contracts_rounded
 
     # ============================================
     # 레버리지 설정
@@ -360,12 +408,15 @@ class OkxClient:
             # 레버리지 설정 실패해도 주문은 진행 (이미 설정되어 있을 수 있음)
             print(f"[OKX] 레버리지 설정 경고: {e}")
 
-        # 2. 주문 실행
+        # 2. 주문 수량을 lot size에 맞게 반올림
+        sz_rounded = self.round_to_lot_size(sz, inst_id)
+        
+        # 3. 주문 실행
         if tp_percent is not None or sl_percent is not None:
             return self.place_market_order_with_tp_sl(
                 inst_id=inst_id,
                 side=side,
-                sz=sz,
+                sz=sz_rounded,
                 tp_percent=tp_percent,
                 sl_percent=sl_percent,
                 td_mode=margin_mode,
@@ -374,7 +425,7 @@ class OkxClient:
             return self.place_market_order(
                 inst_id=inst_id,
                 side=side,
-                sz=sz,
+                sz=sz_rounded,
                 td_mode=margin_mode,
             )
 
