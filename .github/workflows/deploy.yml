@@ -3,12 +3,62 @@ name: Deploy to EC2
 on:
   push:
     branches:
-      - main
+      - master
+      - zdev
   workflow_dispatch:
 
 jobs:
-  deploy:
+  deploy-dev:
     runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/zdev'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.EC2_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H ${{ secrets.ZDEV_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Deploy to ZDEV
+        env:
+          ZDEV_HOST: ${{ secrets.ZDEV_HOST }}
+          ZDEV_USER: ${{ secrets.ZDEV_USER }}
+        run: |
+          ssh -i ~/.ssh/deploy_key ${ZDEV_USER}@${ZDEV_HOST} << 'EOF'
+            set -e
+            cd /home/ubuntu/opt/TriggerHub
+            
+            # Git pull
+            git fetch origin
+            git reset --hard origin/develop
+            
+            # Health check
+            sleep 10
+            curl -f http://localhost/webhook/health/ || exit 1
+            
+            echo "Deployment to ZDEV completed successfully!"
+          EOF
+
+      - name: Send Discord notification
+        if: always()
+        uses: sarisia/actions-status-discord@v1
+        with:
+          webhook: ${{ secrets.DISCORD_WEBHOOK }}
+          title: "TriggerHub 개발서버 배포 (ZDEV)"
+          description: |
+            브랜치: ${{ github.ref_name }}
+            커밋: ${{ github.sha }}
+            상태: ${{ job.status }}
+          username: "GitHub Actions"
+          avatar_url: "https://github.com/github.png"
+
+  deploy-prod:
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/master'
 
     steps:
       - name: Checkout code
@@ -21,7 +71,7 @@ jobs:
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan -H ${{ secrets.EC2_HOST }} >> ~/.ssh/known_hosts
 
-      - name: Deploy to EC2
+      - name: Deploy to Production
         env:
           EC2_HOST: ${{ secrets.EC2_HOST }}
           EC2_USER: ${{ secrets.EC2_USER }}
@@ -34,15 +84,11 @@ jobs:
             git fetch origin
             git reset --hard origin/main
             
-            # 실행 권한 부여 및 Docker 재빌드 및 재시작
-            chmod +x rebuild.sh
-            ./rebuild.sh
-            
             # Health check
             sleep 10
             curl -f http://localhost/webhook/health/ || exit 1
             
-            echo "Deployment completed successfully!"
+            echo "Deployment to Production completed successfully!"
           EOF
 
       - name: Send Discord notification
@@ -50,7 +96,7 @@ jobs:
         uses: sarisia/actions-status-discord@v1
         with:
           webhook: ${{ secrets.DISCORD_WEBHOOK }}
-          title: "TriggerHub 배포"
+          title: "TriggerHub 프로덕션 배포"
           description: |
             브랜치: ${{ github.ref_name }}
             커밋: ${{ github.sha }}
