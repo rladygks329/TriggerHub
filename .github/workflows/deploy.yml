@@ -34,7 +34,7 @@ jobs:
             
             # Git pull
             git fetch origin
-            git reset --hard origin/develop
+            git reset --hard origin/zdev
             
             # Health check
             sleep 10
