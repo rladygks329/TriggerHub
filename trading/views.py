@@ -314,7 +314,7 @@ def okx_webhook(request: HttpRequest):
         })
         
         # 계정별 OKX 클라이언트 생성
-        client = OkxClient.from_account_config(account_config, config.trading)
+        client = OkxClient.from_account_config(account_config, config.trading, config)
         
         try:
             # 수량 결정: use_full_balance=true면 자동 계산
@@ -483,7 +483,7 @@ def account_check(request: HttpRequest):
         
         # 모든 계정의 잔고 조회 (useYn과 관계없이)
         try:
-            client = OkxClient.from_account_config(account, config.trading)
+            client = OkxClient.from_account_config(account, config.trading, config)
             balance_resp = client.get_balance()
             
             # 잔고 정보 파싱

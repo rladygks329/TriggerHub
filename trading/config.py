@@ -161,8 +161,30 @@ class Config:
     
     @property
     def is_demo(self) -> bool:
-        """기본 계정의 Demo 모드 여부 (하위 호환성) - 더 이상 사용하지 않음"""
-        return False  # useYn으로 대체됨
+        """전역 Demo 모드 여부 (config.json의 demo 필드)"""
+        demo_value = self._config.get("demo", "N")
+        return str(demo_value).upper() == "Y"
+    
+    def is_account_demo(self, account: Optional[Dict[str, Any]] = None) -> bool:
+        """
+        계정별 Demo 모드 여부
+        
+        Args:
+            account: 계정 정보 딕셔너리. None이면 기본 계정 사용
+        
+        Returns:
+            계정의 demo 설정이 "Y"이면 True, 아니면 전역 demo 설정 사용
+        """
+        if account is None:
+            account = self.get_account()
+        
+        # 계정별 demo 설정이 있으면 우선 사용
+        account_demo = account.get("demo")
+        if account_demo is not None:
+            return str(account_demo).upper() == "Y"
+        
+        # 계정별 설정이 없으면 전역 demo 설정 사용
+        return self.is_demo
     
     # ============================================
     # 기본 거래 설정

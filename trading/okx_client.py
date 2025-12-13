@@ -559,32 +559,43 @@ class OkxClient:
             from .config import get_config
             config = get_config()
         
+        account = config.get_account()
         return cls(
             api_key=config.api_key,
             secret_key=config.secret_key,
             passphrase=config.passphrase,
-            is_demo=config.is_demo,
+            is_demo=config.is_account_demo(account),
             leverage=config.trading_leverage,
             td_mode=config.trading_td_mode,
+            base_url=config.base_url,
         )
     
     @classmethod
-    def from_account_config(cls, account_config: Dict[str, Any], trading_config: Dict[str, Any]) -> 'OkxClient':
+    def from_account_config(cls, account_config: Dict[str, Any], trading_config: Dict[str, Any], global_config: Optional['Config'] = None) -> 'OkxClient':
         """
         계정 설정 딕셔너리에서 OkxClient 인스턴스 생성.
         
         Args:
-            account_config: 계정 정보 딕셔너리 (api_key, secret_key, passphrase, leverage, td_mode, base_url 등)
+            account_config: 계정 정보 딕셔너리 (api_key, secret_key, passphrase, leverage, td_mode, base_url, demo 등)
             trading_config: 트레이딩 설정 딕셔너리 (기본 leverage, td_mode 등)
+            global_config: Config 인스턴스 (전역 demo 설정 확인용). None이면 자동으로 로드.
         
         Returns:
             OkxClient 인스턴스
         """
+        # demo 설정 확인: 계정별 설정 우선, 없으면 전역 설정 사용
+        is_demo = False
+        if global_config is None:
+            from .config import get_config
+            global_config = get_config()
+        
+        is_demo = global_config.is_account_demo(account_config)
+        
         return cls(
             api_key=account_config.get("api_key", ""),
             secret_key=account_config.get("secret_key", ""),
             passphrase=account_config.get("passphrase", ""),
-            is_demo=False,  # useYn으로 관리하므로 항상 False
+            is_demo=is_demo,
             leverage=account_config.get("leverage", trading_config.get("leverage", 10)),
             td_mode=account_config.get("td_mode", trading_config.get("td_mode", "cross")),
             base_url=account_config.get("base_url", "https://www.okx.com"),
