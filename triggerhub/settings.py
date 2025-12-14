@@ -31,6 +31,7 @@ MIDDLEWARE = [
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
+    "triggerhub.middleware.ErrorNotificationMiddleware",  # 에러 알림 미들웨어 (마지막에 추가)
 ]
 
 ROOT_URLCONF = "triggerhub.urls"
