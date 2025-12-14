@@ -13,44 +13,17 @@ from .config import get_config
 from .okx_client import OkxClient
 from .discord import get_discord_webhook_url, send_discord_message
 
-
-# ============================================
-# 파일 로깅 설정
-# ============================================
-LOG_DIR = Path(__file__).resolve().parent.parent / "logs"
-LOG_DIR.mkdir(exist_ok=True)
-
-# 웹훅 로그 파일
-WEBHOOK_LOG_FILE = LOG_DIR / "webhook.log"
-
-# 로거 설정
-webhook_logger = logging.getLogger("webhook")
-webhook_logger.setLevel(logging.INFO)
-
-# 파일 핸들러 (append 모드)
-file_handler = logging.FileHandler(WEBHOOK_LOG_FILE, encoding="utf-8")
-file_handler.setLevel(logging.INFO)
-
-# 포맷 설정
-formatter = logging.Formatter("%(asctime)s | %(message)s", datefmt="%Y-%m-%d %H:%M:%S")
-file_handler.setFormatter(formatter)
-
-# 핸들러 추가 (중복 방지)
-if not webhook_logger.handlers:
-    webhook_logger.addHandler(file_handler)
+# 로거 설정 (Django settings.py의 로깅 설정 사용)
+logger = logging.getLogger(__name__)
 
 
 def log_webhook(log_type: str, message: str, data: dict = None):
-    """웹훅 로그를 파일과 콘솔에 기록"""
+    """웹훅 로그를 표준 로거로 기록"""
     log_line = f"[{log_type}] {message}"
     if data:
         log_line += f" | {json.dumps(data, ensure_ascii=False)}"
     
-    # 파일에 기록
-    webhook_logger.info(log_line)
-    
-    # 콘솔에도 출력 (즉시 flush)
-    print(log_line, flush=True)
+    logger.info(log_line)
 
 
 # 웹훅 테스트 로그 저장 (메모리)
@@ -208,15 +181,15 @@ def okx_webhook(request: HttpRequest):
     }
     """
     # 함수 진입 확인 (가장 먼저 실행)
-    print("=" * 80, flush=True)
-    print(f"[OKX_WEBHOOK] 함수 호출됨 | path={request.path} | method={request.method}", flush=True)
-    print(f"[OKX_WEBHOOK] Content-Type: {request.META.get('CONTENT_TYPE', 'N/A')}", flush=True)
-    print(f"[OKX_WEBHOOK] Request body length: {len(request.body)}", flush=True)
-    print("=" * 80, flush=True)
+    logger.info("=" * 80)
+    logger.info(f"[OKX_WEBHOOK] 함수 호출됨 | path={request.path} | method={request.method}")
+    logger.info(f"[OKX_WEBHOOK] Content-Type: {request.META.get('CONTENT_TYPE', 'N/A')}")
+    logger.info(f"[OKX_WEBHOOK] Request body length: {len(request.body)}")
+    logger.info("=" * 80)
     
     # POST 메서드 확인 (수동 체크)
     if request.method != "POST":
-        print(f"[OKX_WEBHOOK] ERROR: Method is {request.method}, not POST", flush=True)
+        logger.error(f"[OKX_WEBHOOK] ERROR: Method is {request.method}, not POST")
         return JsonResponse({
             "ok": False,
             "error": "method_not_allowed",
@@ -671,22 +644,20 @@ def webhook_test(request: HttpRequest):
         "parse_error": parse_error,
     })
     
-    # 콘솔 로그 출력 (서버 터미널에서 확인)
-    print("\n" + "=" * 60)
-    print("📥 [WEBHOOK TEST] 웹훅 수신!")
-    print("=" * 60)
-    print(f"⏰ 시간: {timestamp}")
-    print(f"🌐 IP: {client_ip}")
-    print(f"📱 User-Agent: {user_agent[:50]}...")
-    print(f"📋 Content-Type: {content_type}")
-    print(f"✅ JSON 유효: {json_valid}")
-    print("-" * 60)
-    print("📦 Raw Body:")
-    print(raw_body[:500])
-    print("-" * 60)
-    print("📊 Parsed Payload:")
-    print(json.dumps(payload, indent=2, ensure_ascii=False)[:500])
-    print("=" * 60 + "\n")
+    # 상세 로그 출력
+    logger.info("\n" + "=" * 60)
+    logger.info("📥 [WEBHOOK TEST] 웹훅 수신!")
+    logger.info("=" * 60)
+    logger.info(f"⏰ 시간: {timestamp}")
+    logger.info(f"🌐 IP: {client_ip}")
+    logger.info(f"📱 User-Agent: {user_agent[:50]}...")
+    logger.info(f"📋 Content-Type: {content_type}")
+    logger.info(f"✅ JSON 유효: {json_valid}")
+    logger.info("-" * 60)
+    logger.info(f"📦 Raw Body: {raw_body[:500]}")
+    logger.info("-" * 60)
+    logger.info(f"📊 Parsed Payload: {json.dumps(payload, indent=2, ensure_ascii=False)[:500]}")
+    logger.info("=" * 60 + "\n")
     
     # 응답
     return JsonResponse({

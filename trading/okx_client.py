@@ -98,7 +98,6 @@ class OkxClient:
         # 주문 응답 로깅
         if "/trade/order" in path:
             logger.info(f"[OKX] 주문 응답: {json.dumps(response_json, indent=2)}")
-            print(f"[OKX] 주문 응답: {json.dumps(response_json, indent=2)}", flush=True)
         
         return response_json
 
@@ -138,7 +137,7 @@ class OkxClient:
         if resp.get('code') == '0' and resp.get('data') and len(resp['data']) > 0:
             inst_info = resp['data'][0]
             # 디버깅: 실제 OKX에서 받은 lot size 값 로깅
-            print(f"[OKX] Instrument 정보 조회: instId={inst_id}, lotSz={inst_info.get('lotSz')}, minSz={inst_info.get('minSz')}, ctVal={inst_info.get('ctVal')}", flush=True)
+            logger.info(f"[OKX] Instrument 정보 조회: instId={inst_id}, lotSz={inst_info.get('lotSz')}, minSz={inst_info.get('minSz')}, ctVal={inst_info.get('ctVal')}")
             return inst_info
         raise ValueError(f"Instrument 정보 조회 실패: {inst_id}")
 
@@ -159,11 +158,9 @@ class OkxClient:
             - lot size = 0.001, quantity = 0.123 → 0.123 (123 * 0.001)
         """
         logger.info(f"[OKX] round_to_lot_size 호출: quantity={quantity}, inst_id={inst_id}")
-        print(f"[OKX] round_to_lot_size 호출: quantity={quantity}, inst_id={inst_id}", flush=True)
         try:
             # Instrument 정보에서 lot size 가져오기
             logger.info(f"[OKX] Instrument 정보 조회 시작: {inst_id}")
-            print(f"[OKX] Instrument 정보 조회 시작: {inst_id}", flush=True)
             inst_info = self.get_instrument_info(inst_id)
             lot_sz = Decimal(str(inst_info.get('lotSz', '0.001')))  # 기본값 0.001
             min_sz = Decimal(str(inst_info.get('minSz', '0.001')))  # 최소 주문 수량
@@ -173,7 +170,6 @@ class OkxClient:
             
             # 디버깅 로그
             logger.info(f"[OKX] Lot size 반올림: 원본={qty}, lot_sz={lot_sz}, min_sz={min_sz}")
-            print(f"[OKX] Lot size 반올림: 원본={qty}, lot_sz={lot_sz}, min_sz={min_sz}", flush=True)
             
             # lot size의 배수로 내림 (예: 0.401 / 0.1 = 4.01 → 4 → 4 * 0.1 = 0.4)
             if lot_sz > 0:
@@ -192,26 +188,24 @@ class OkxClient:
                     if (min_sz / lot_sz) % 1 != 0:
                         min_multiplier += 1  # 올림
                     rounded = min_multiplier * lot_sz
-                    print(f"[OKX] ⚠️ 반올림된 수량({rounded})이 최소 수량({min_sz})보다 작음, lot size 배수로 조정: {rounded}", flush=True)
+                    logger.warning(f"[OKX] ⚠️ 반올림된 수량({rounded})이 최소 수량({min_sz})보다 작음, lot size 배수로 조정: {rounded}")
                 else:
                     rounded = min_sz
-                    print(f"[OKX] ⚠️ 반올림된 수량({rounded})이 최소 수량({min_sz})보다 작음, 최소 수량 사용", flush=True)
+                    logger.warning(f"[OKX] ⚠️ 반올림된 수량({rounded})이 최소 수량({min_sz})보다 작음, 최소 수량 사용")
             
             logger.info(f"[OKX] ✅ Lot size 반올림 결과: {qty} → {rounded} (lot_sz={lot_sz}, min_sz={min_sz}, 배수={multiplier if lot_sz > 0 else 'N/A'})")
-            print(f"[OKX] ✅ Lot size 반올림 결과: {qty} → {rounded} (lot_sz={lot_sz}, min_sz={min_sz}, 배수={multiplier if lot_sz > 0 else 'N/A'})", flush=True)
             return str(rounded)
         except Exception as e:
             # 실패 시 기본값 0.001로 반올림
             import traceback
-            print(f"[OKX] ❌ Lot size 반올림 실패, 기본값 사용: {e}", flush=True)
-            print(f"[OKX] 예외 상세: {traceback.format_exc()}", flush=True)
+            logger.error(f"[OKX] ❌ Lot size 반올림 실패, 기본값 사용: {e}\n{traceback.format_exc()}")
             qty = Decimal(str(quantity))
             lot_sz = Decimal('0.001')
             multiplier = (qty / lot_sz).quantize(Decimal('1'), rounding=ROUND_DOWN)
             rounded = multiplier * lot_sz
             if rounded < Decimal('0.001'):
                 rounded = Decimal('0.001')
-            print(f"[OKX] 기본값 사용 결과: {qty} → {rounded}", flush=True)
+            logger.info(f"[OKX] 기본값 사용 결과: {qty} → {rounded}")
             return str(rounded)
 
     # ============================================
@@ -285,13 +279,10 @@ class OkxClient:
         max_contracts = (available_margin * leverage * safety_margin) / contract_usdt_value
         
         logger.info(f"[OKX] 수량 계산 상세: available_margin={available_margin:.2f}, leverage={leverage}, safety_margin={safety_margin}, contract_usdt_value={contract_usdt_value:.2f}")
-        print(f"[OKX] 수량 계산 상세: available_margin={available_margin:.2f}, leverage={leverage}, safety_margin={safety_margin}, contract_usdt_value={contract_usdt_value:.2f}", flush=True)
         
         # 7. lot size에 맞게 반올림
         contracts_str = str(max_contracts)
         logger.info(f"[OKX] 수량 계산: 잔고=${usdt_balance:.2f}, 현재가=${current_price:.2f}, 레버리지={leverage}x, 계산된 계약수={max_contracts:.6f} (반올림 전)")
-        print(f"[OKX] 수량 계산: 잔고=${usdt_balance:.2f}, 현재가=${current_price:.2f}, "
-              f"레버리지={leverage}x, 계산된 계약수={max_contracts:.6f} (반올림 전)", flush=True)
         
         try:
             contracts_rounded = self.round_to_lot_size(contracts_str, inst_id)
@@ -305,14 +296,11 @@ class OkxClient:
                 )
             
             logger.info(f"[OKX] 수량 계산 완료: 최종 계약수={contracts:.6f} (lot size 반올림 후)")
-            print(f"[OKX] 수량 계산 완료: 최종 계약수={contracts:.6f} (lot size 반올림 후)", flush=True)
             
             return contracts_rounded
         except Exception as e:
             import traceback
             logger.error(f"[OKX] ❌ 수량 계산 중 오류: {e}\n{traceback.format_exc()}")
-            print(f"[OKX] ❌ 수량 계산 중 오류: {e}", flush=True)
-            print(f"[OKX] 예외 상세: {traceback.format_exc()}", flush=True)
             raise
 
     # ============================================
@@ -412,13 +400,12 @@ class OkxClient:
             "sz": sz,
         }
         
-        logger.info(f"[OKX] 주문 요청 body: {body}")
-        print(f"[OKX] 주문 요청 body: {json.dumps(body, indent=2)}", flush=True)
+        logger.info(f"[OKX] 주문 요청 body: {json.dumps(body, indent=2)}")
 
         # TP/SL이 설정된 경우 현재 가격 기반으로 계산
         if tp_percent is not None or sl_percent is not None:
             current_price = self.get_last_price(inst_id)
-            print(f"[OKX] TP/SL 계산 시작: 현재가={current_price}, tp_percent={tp_percent}, sl_percent={sl_percent}, side={side}", flush=True)
+            logger.info(f"[OKX] TP/SL 계산 시작: 현재가={current_price}, tp_percent={tp_percent}, sl_percent={sl_percent}, side={side}")
 
             attach_algo: Dict[str, str] = {}
 
@@ -434,7 +421,7 @@ class OkxClient:
                 attach_algo["tpTriggerPx"] = tp_trigger_px
                 attach_algo["tpOrdPx"] = "-1"  # 시장가로 체결
                 attach_algo["tpTriggerPxType"] = "last"  # 마지막 체결가 기준
-                print(f"[OKX] ✅ TP 설정: {current_price} → {tp_trigger_px} (+{tp_percent}%)", flush=True)
+                logger.info(f"[OKX] ✅ TP 설정: {current_price} → {tp_trigger_px} (+{tp_percent}%)")
 
             if sl_percent is not None:
                 # 매수: 가격 하락이 손실 / 매도: 가격 상승이 손실
@@ -447,13 +434,13 @@ class OkxClient:
                 attach_algo["slTriggerPx"] = sl_trigger_px
                 attach_algo["slOrdPx"] = "-1"  # 시장가로 체결
                 attach_algo["slTriggerPxType"] = "last"  # 마지막 체결가 기준
-                print(f"[OKX] ✅ SL 설정: {current_price} → {sl_trigger_px} (-{sl_percent}%)", flush=True)
+                logger.info(f"[OKX] ✅ SL 설정: {current_price} → {sl_trigger_px} (-{sl_percent}%)")
 
             if attach_algo:
                 body["attachAlgoOrds"] = [attach_algo]
-                print(f"[OKX] TP/SL 주문 첨부: {attach_algo}", flush=True)
+                logger.info(f"[OKX] TP/SL 주문 첨부: {attach_algo}")
             else:
-                print(f"[OKX] ⚠️ TP/SL 주문이 첨부되지 않음", flush=True)
+                logger.warning(f"[OKX] ⚠️ TP/SL 주문이 첨부되지 않음")
 
         return self._request("POST", path, body)
 
@@ -474,7 +461,7 @@ class OkxClient:
         레버리지 설정 후 TP/SL 포함 주문.
         자동매매에서 주로 사용하는 통합 메서드.
         """
-        print(f"[OKX] place_order_with_leverage 호출: inst_id={inst_id}, side={side}, sz={sz}, leverage={leverage}, tp={tp_percent}, sl={sl_percent}", flush=True)
+        logger.info(f"[OKX] place_order_with_leverage 호출: inst_id={inst_id}, side={side}, sz={sz}, leverage={leverage}, tp={tp_percent}, sl={sl_percent}")
         
         # 1. 레버리지 설정
         margin_mode = td_mode or self.td_mode
@@ -484,20 +471,16 @@ class OkxClient:
             self.set_leverage(inst_id, lev, margin_mode)
         except Exception as e:
             # 레버리지 설정 실패해도 주문은 진행 (이미 설정되어 있을 수 있음)
-            print(f"[OKX] 레버리지 설정 경고: {e}")
+            logger.warning(f"[OKX] 레버리지 설정 경고: {e}")
 
         # 2. 주문 수량을 lot size에 맞게 반올림
         logger.info(f"[OKX] 주문 수량 반올림 시작: 원본={sz}, inst_id={inst_id}")
-        print(f"[OKX] 주문 수량 반올림 시작: 원본={sz}, inst_id={inst_id}", flush=True)
         try:
             sz_rounded = self.round_to_lot_size(sz, inst_id)
             logger.info(f"[OKX] 주문 수량 반올림 완료: {sz} → {sz_rounded}")
-            print(f"[OKX] 주문 수량 반올림 완료: {sz} → {sz_rounded}", flush=True)
         except Exception as e:
             import traceback
             logger.error(f"[OKX] ⚠️ 주문 수량 반올림 실패: {e}, 원본 수량 사용\n{traceback.format_exc()}")
-            print(f"[OKX] ⚠️ 주문 수량 반올림 실패: {e}, 원본 수량 사용", flush=True)
-            print(f"[OKX] 예외 상세: {traceback.format_exc()}", flush=True)
             sz_rounded = sz  # 실패 시 원본 사용
         
         # 3. 주문 실행

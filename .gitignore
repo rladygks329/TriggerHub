@@ -55,7 +55,9 @@ db.sqlite3-journal
 *.log
 staticfiles/
 media/
-logs/
+# logs/ 디렉토리는 볼륨 마운트로 접근하므로 gitignore에서 제외
+logs/*.log
+logs/backup/
 
 ### Environment Variables ###
 .env

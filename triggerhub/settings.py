@@ -74,4 +74,92 @@ STATIC_ROOT = BASE_DIR / "staticfiles"
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
+# ============================================
+# 로깅 설정
+# ============================================
+LOG_DIR = BASE_DIR / "logs"
+LOG_DIR.mkdir(exist_ok=True)
+
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "formatters": {
+        "standard": {
+            "format": "%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+            "datefmt": "%Y-%m-%d %H:%M:%S",
+        },
+        "detailed": {
+            "format": "%(asctime)s [%(levelname)s] %(name)s:%(lineno)d: %(message)s",
+            "datefmt": "%Y-%m-%d %H:%M:%S",
+        },
+    },
+    "handlers": {
+        "console": {
+            "class": "logging.StreamHandler",
+            "formatter": "standard",
+            "level": "INFO",
+        },
+        "app_file": {
+            "class": "logging.handlers.RotatingFileHandler",
+            "filename": str(LOG_DIR / "app.log"),
+            "maxBytes": 10 * 1024 * 1024,  # 10MB
+            "backupCount": 5,
+            "formatter": "standard",
+            "encoding": "utf-8",
+        },
+        "webhook_file": {
+            "class": "logging.handlers.RotatingFileHandler",
+            "filename": str(LOG_DIR / "webhook.log"),
+            "maxBytes": 10 * 1024 * 1024,  # 10MB
+            "backupCount": 5,
+            "formatter": "standard",
+            "encoding": "utf-8",
+        },
+        "okx_file": {
+            "class": "logging.handlers.RotatingFileHandler",
+            "filename": str(LOG_DIR / "okx.log"),
+            "maxBytes": 10 * 1024 * 1024,  # 10MB
+            "backupCount": 5,
+            "formatter": "standard",
+            "encoding": "utf-8",
+        },
+    },
+    "loggers": {
+        "django": {
+            "handlers": ["console", "app_file"],
+            "level": "INFO",
+            "propagate": False,
+        },
+        "trading": {
+            "handlers": ["console", "app_file"],
+            "level": "INFO",
+            "propagate": False,
+        },
+        "trading.views": {
+            "handlers": ["console", "webhook_file"],
+            "level": "INFO",
+            "propagate": False,
+        },
+        "trading.okx_client": {
+            "handlers": ["console", "okx_file"],
+            "level": "INFO",
+            "propagate": False,
+        },
+        "trading.config": {
+            "handlers": ["console", "app_file"],
+            "level": "INFO",
+            "propagate": False,
+        },
+        "trading.discord": {
+            "handlers": ["console", "app_file"],
+            "level": "INFO",
+            "propagate": False,
+        },
+    },
+    "root": {
+        "handlers": ["console", "app_file"],
+        "level": "INFO",
+    },
+}
+
 

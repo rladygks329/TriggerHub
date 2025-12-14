@@ -2,9 +2,13 @@
 설정 파일 로더 모듈
 """
 import json
+import logging
 import os
 from pathlib import Path
 from typing import Any, Dict, List, Optional
+
+# 로거 설정
+logger = logging.getLogger(__name__)
 
 
 class Config:
@@ -50,12 +54,12 @@ class Config:
             config_path = self._find_config_file()
             with open(config_path, 'r', encoding='utf-8') as f:
                 self._config = json.load(f)
-            print(f"✅ config.json 로드 완료: {config_path}")
+            logger.info(f"✅ config.json 로드 완료: {config_path}")
         except FileNotFoundError as e:
-            print(f"❌ {e}")
+            logger.error(f"❌ {e}")
             raise
         except json.JSONDecodeError as e:
-            print(f"❌ config.json 파일 형식이 올바르지 않습니다: {e}")
+            logger.error(f"❌ config.json 파일 형식이 올바르지 않습니다: {e}")
             raise
     
     def reload(self) -> None:
