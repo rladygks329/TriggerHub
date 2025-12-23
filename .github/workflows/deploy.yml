@@ -3,7 +3,7 @@ name: Deploy to EC2
 on:
   push:
     branches:
-      - master
+      - main
       - zdev
   workflow_dispatch:
 
@@ -30,16 +30,21 @@ jobs:
         run: |
           ssh -i ~/.ssh/deploy_key ${ZDEV_USER}@${ZDEV_HOST} << 'EOF'
             set -e
-            cd /home/ubuntu/opt/TriggerHub
+            PROJECT_DIR="/home/ubuntu/opt/TriggerHub"
+            cd "$PROJECT_DIR"
+            
+            # 로그 디렉토리 명시적으로 생성 (존재하지 않는 경우)
+            mkdir -p "$PROJECT_DIR/logs"
+            mkdir -p "$PROJECT_DIR/logs/backup"
             
             # 로그 파일 백업 (서버 재시작 전)
-            if [ -d "logs" ]; then
+            if [ -d "$PROJECT_DIR/logs" ]; then
               TIMESTAMP=$(date +"%Y%m%d-%H%M%S")
-              BACKUP_DIR="logs/backup"
+              BACKUP_DIR="$PROJECT_DIR/logs/backup"
               mkdir -p "$BACKUP_DIR"
               
               # 현재 로그 파일들을 타임스탬프와 함께 백업
-              for log_file in logs/*.log; do
+              for log_file in "$PROJECT_DIR/logs"/*.log; do
                 if [ -f "$log_file" ]; then
                   filename=$(basename "$log_file" .log)
                   backup_file="$BACKUP_DIR/${filename}-${TIMESTAMP}.log"
@@ -82,7 +87,7 @@ jobs:
 
   deploy-prod:
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/master'
+    if: github.ref == 'refs/heads/main'
 
     steps:
       - name: Checkout code
@@ -102,16 +107,21 @@ jobs:
         run: |
           ssh -i ~/.ssh/deploy_key ${EC2_USER}@${EC2_HOST} << 'EOF'
             set -e
-            cd /home/ubuntu/opt/TriggerHub
+            PROJECT_DIR="/home/ubuntu/opt/TriggerHub"
+            cd "$PROJECT_DIR"
+            
+            # 로그 디렉토리 명시적으로 생성 (존재하지 않는 경우)
+            mkdir -p "$PROJECT_DIR/logs"
+            mkdir -p "$PROJECT_DIR/logs/backup"
             
             # 로그 파일 백업 (서버 재시작 전)
-            if [ -d "logs" ]; then
+            if [ -d "$PROJECT_DIR/logs" ]; then
               TIMESTAMP=$(date +"%Y%m%d-%H%M%S")
-              BACKUP_DIR="logs/backup"
+              BACKUP_DIR="$PROJECT_DIR/logs/backup"
               mkdir -p "$BACKUP_DIR"
               
               # 현재 로그 파일들을 타임스탬프와 함께 백업
-              for log_file in logs/*.log; do
+              for log_file in "$PROJECT_DIR/logs"/*.log; do
                 if [ -f "$log_file" ]; then
                   filename=$(basename "$log_file" .log)
                   backup_file="$BACKUP_DIR/${filename}-${TIMESTAMP}.log"
