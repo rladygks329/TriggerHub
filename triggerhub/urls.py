@@ -10,6 +10,7 @@ handler500 = "triggerhub.error_handlers.handler500"
 urlpatterns = [
     path("admin/", admin.site.urls),
     path("webhook/", include("trading.urls")),
+    path("webhook/", include("binance.urls")),
 ]
 
 

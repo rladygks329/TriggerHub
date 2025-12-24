@@ -1,0 +1,35 @@
+{
+  "accounts": [
+    {
+        "name" : "default",
+        "api_key": "your-binance-api-key",
+        "secret_key": "your-binance-secret-key",
+        "base_url": "https://fapi.binance.com",
+        "testnet": false,
+        "leverage": 10,
+        "useYn": "y"
+    },
+    {
+        "name" : "testnet",
+        "api_key": "your-testnet-api-key",
+        "secret_key": "your-testnet-secret-key",
+        "base_url": "https://testnet.binancefuture.com",
+        "testnet": true,
+        "leverage": 10,
+        "useYn": "n"
+    }
+  ],
+  "testnet": false,
+  "webhook_secret": "webhookSecretKeyP@ssw0rd",
+  "leverage": 10,
+
+  "trading": {
+    "symbol": "ETHUSDT",
+    "leverage": 10,
+    "use_full_balance": true,
+    "stop_loss_percent": 0.7,
+    "take_profit_percent": 2.3,
+    "enable_trading": true
+  }
+}
+

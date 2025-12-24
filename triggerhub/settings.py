@@ -21,6 +21,7 @@ INSTALLED_APPS = [
     "django.contrib.messages",
     "django.contrib.staticfiles",
     "trading",
+    "binance",
 ]
 
 MIDDLEWARE = [
@@ -127,6 +128,14 @@ LOGGING = {
             "formatter": "standard",
             "encoding": "utf-8",
         },
+        "binance_file": {
+            "class": "logging.handlers.RotatingFileHandler",
+            "filename": str(LOG_DIR / "binance.log"),
+            "maxBytes": 10 * 1024 * 1024,  # 10MB
+            "backupCount": 5,
+            "formatter": "standard",
+            "encoding": "utf-8",
+        },
     },
     "loggers": {
         "django": {
@@ -155,6 +164,26 @@ LOGGING = {
             "propagate": False,
         },
         "trading.discord": {
+            "handlers": ["console", "app_file"],
+            "level": "INFO",
+            "propagate": False,
+        },
+        "binance": {
+            "handlers": ["console", "app_file"],
+            "level": "INFO",
+            "propagate": False,
+        },
+        "binance.views": {
+            "handlers": ["console", "webhook_file", "binance_file"],
+            "level": "INFO",
+            "propagate": False,
+        },
+        "binance.binance_client": {
+            "handlers": ["console", "binance_file"],
+            "level": "INFO",
+            "propagate": False,
+        },
+        "binance.config": {
             "handlers": ["console", "app_file"],
             "level": "INFO",
             "propagate": False,
