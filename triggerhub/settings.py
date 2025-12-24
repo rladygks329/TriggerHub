@@ -36,6 +36,9 @@ MIDDLEWARE = [
 
 ROOT_URLCONF = "triggerhub.urls"
 
+# APPEND_SLASH를 False로 설정하여 POST 요청 시 슬래시 리다이렉트 문제 방지
+APPEND_SLASH = False
+
 TEMPLATES = [
     {
         "BACKEND": "django.template.backends.django.DjangoTemplates",

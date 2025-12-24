@@ -219,9 +219,22 @@ def handler403(request: HttpRequest, exception: Optional[Exception] = None) -> H
         error_type="403 Forbidden",
     )
     
-    return JsonResponse({
+    # 상세한 에러 정보를 포함한 응답
+    error_data = {
         "ok": False,
         "error": "forbidden",
         "message": error_message,
-    }, status=403)
+    }
+    
+    # PermissionDenied 예외에서 추가 정보 추출
+    if exception and hasattr(exception, 'args') and exception.args:
+        error_msg = str(exception.args[0])
+        # 시크릿 불일치인 경우 더 구체적인 에러 코드 제공
+        if "시크릿" in error_msg or "secret" in error_msg.lower():
+            error_data["error"] = "invalid_secret"
+        elif "enable_trading" in error_msg or "거래 비활성화" in error_msg:
+            error_data["error"] = "trading_disabled"
+        error_data["message"] = error_msg
+    
+    return JsonResponse(error_data, status=403)
 
