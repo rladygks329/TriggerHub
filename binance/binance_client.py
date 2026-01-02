@@ -472,15 +472,19 @@ class BinanceClient:
             
             # TP 주문 (TAKE_PROFIT_MARKET)
             try:
+                tp_price_rounded = str(tp_price.quantize(Decimal("0.01"), rounding=ROUND_DOWN))
                 tp_order = self.place_take_profit_order(
                     symbol=symbol,
                     side="SELL" if side.upper() == "BUY" else "BUY",
                     quantity=quantity,
-                    stop_price=str(tp_price.quantize(Decimal("0.01"), rounding=ROUND_DOWN)),
+                    stop_price=tp_price_rounded,
                 )
-                logger.info(f"[BINANCE] ✅ TP 주문 생성: {current_price} → {tp_price} (+{tp_percent}%)")
+                logger.info(f"[BINANCE] ✅ TP 주문 생성: 현재가={current_price} → TP가격={tp_price_rounded} (+{tp_percent}%), 수량={quantity}")
             except Exception as e:
+                import traceback
                 logger.error(f"[BINANCE] ❌ TP 주문 생성 실패: {e}")
+                logger.error(f"[BINANCE] TP 주문 상세: symbol={symbol}, side={'SELL' if side.upper() == 'BUY' else 'BUY'}, quantity={quantity}, stop_price={tp_price.quantize(Decimal('0.01'), rounding=ROUND_DOWN)}")
+                logger.error(f"[BINANCE] TP 주문 에러 상세:\n{traceback.format_exc()}")
         
         if sl_percent is not None:
             # SL 가격 계산
@@ -491,15 +495,19 @@ class BinanceClient:
             
             # SL 주문 (STOP_MARKET)
             try:
+                sl_price_rounded = str(sl_price.quantize(Decimal("0.01"), rounding=ROUND_DOWN))
                 sl_order = self.place_stop_loss_order(
                     symbol=symbol,
                     side="SELL" if side.upper() == "BUY" else "BUY",
                     quantity=quantity,
-                    stop_price=str(sl_price.quantize(Decimal("0.01"), rounding=ROUND_DOWN)),
+                    stop_price=sl_price_rounded,
                 )
-                logger.info(f"[BINANCE] ✅ SL 주문 생성: {current_price} → {sl_price} (-{sl_percent}%)")
+                logger.info(f"[BINANCE] ✅ SL 주문 생성: 현재가={current_price} → SL가격={sl_price_rounded} (-{sl_percent}%), 수량={quantity}")
             except Exception as e:
+                import traceback
                 logger.error(f"[BINANCE] ❌ SL 주문 생성 실패: {e}")
+                logger.error(f"[BINANCE] SL 주문 상세: symbol={symbol}, side={'SELL' if side.upper() == 'BUY' else 'BUY'}, quantity={quantity}, stop_price={sl_price.quantize(Decimal('0.01'), rounding=ROUND_DOWN)}")
+                logger.error(f"[BINANCE] SL 주문 에러 상세:\n{traceback.format_exc()}")
         
         # 메인 주문과 TP/SL 주문 정보 반환
         return {
@@ -515,7 +523,12 @@ class BinanceClient:
         quantity: str,
         stop_price: str,
     ) -> Dict[str, Any]:
-        """Take Profit 주문 생성"""
+        """
+        Take Profit 주문 생성
+        
+        참고: quantity를 지정할 때는 closePosition 파라미터를 포함하지 않아야 함.
+        Binance API 문서에 따르면 quantity와 closePosition은 함께 사용할 수 없음.
+        """
         path = '/fapi/v1/order'
         params = {
             'symbol': symbol,
@@ -523,7 +536,7 @@ class BinanceClient:
             'type': 'TAKE_PROFIT_MARKET',
             'quantity': quantity,
             'stopPrice': stop_price,
-            'closePosition': 'false',
+            # quantity를 지정할 때는 closePosition 파라미터를 포함하지 않음
         }
         return self._request("POST", path, params, signed=True)
 
@@ -534,7 +547,12 @@ class BinanceClient:
         quantity: str,
         stop_price: str,
     ) -> Dict[str, Any]:
-        """Stop Loss 주문 생성"""
+        """
+        Stop Loss 주문 생성
+        
+        참고: quantity를 지정할 때는 closePosition 파라미터를 포함하지 않아야 함.
+        Binance API 문서에 따르면 quantity와 closePosition은 함께 사용할 수 없음.
+        """
         path = '/fapi/v1/order'
         params = {
             'symbol': symbol,
@@ -542,7 +560,7 @@ class BinanceClient:
             'type': 'STOP_MARKET',
             'quantity': quantity,
             'stopPrice': stop_price,
-            'closePosition': 'false',
+            # quantity를 지정할 때는 closePosition 파라미터를 포함하지 않음
         }
         return self._request("POST", path, params, signed=True)
 
