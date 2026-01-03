@@ -175,6 +175,14 @@ class BinanceClient:
         else:
             raise ValueError(f"Unsupported method: {method}")
         
+        # 에러 발생 시 응답 본문 로깅
+        if not resp.ok:
+            try:
+                error_json = resp.json()
+                logger.error(f"[BINANCE] API 에러 응답: {json.dumps(error_json, indent=2)}")
+            except Exception:
+                logger.error(f"[BINANCE] API 에러 응답 (텍스트): {resp.text}")
+        
         resp.raise_for_status()
         response_json = resp.json()
         
@@ -522,12 +530,14 @@ class BinanceClient:
         side: str,
         quantity: str,
         stop_price: str,
+        working_type: str = 'CONTRACT_PRICE',
     ) -> Dict[str, Any]:
         """
         Take Profit 주문 생성
         
-        참고: quantity를 지정할 때는 closePosition 파라미터를 포함하지 않아야 함.
-        Binance API 문서에 따르면 quantity와 closePosition은 함께 사용할 수 없음.
+        참고: 
+        - quantity를 지정할 때는 closePosition 파라미터를 포함하지 않아야 함.
+        - workingType 파라미터는 stopPrice 해석 방법을 결정함 (MARK_PRICE 또는 CONTRACT_PRICE)
         """
         path = '/fapi/v1/order'
         params = {
@@ -536,6 +546,7 @@ class BinanceClient:
             'type': 'TAKE_PROFIT_MARKET',
             'quantity': quantity,
             'stopPrice': stop_price,
+            'workingType': working_type.upper(),
             # quantity를 지정할 때는 closePosition 파라미터를 포함하지 않음
         }
         return self._request("POST", path, params, signed=True)
@@ -546,12 +557,14 @@ class BinanceClient:
         side: str,
         quantity: str,
         stop_price: str,
+        working_type: str = 'CONTRACT_PRICE',
     ) -> Dict[str, Any]:
         """
         Stop Loss 주문 생성
         
-        참고: quantity를 지정할 때는 closePosition 파라미터를 포함하지 않아야 함.
-        Binance API 문서에 따르면 quantity와 closePosition은 함께 사용할 수 없음.
+        참고: 
+        - quantity를 지정할 때는 closePosition 파라미터를 포함하지 않아야 함.
+        - workingType 파라미터는 stopPrice 해석 방법을 결정함 (MARK_PRICE 또는 CONTRACT_PRICE)
         """
         path = '/fapi/v1/order'
         params = {
@@ -560,6 +573,7 @@ class BinanceClient:
             'type': 'STOP_MARKET',
             'quantity': quantity,
             'stopPrice': stop_price,
+            'workingType': working_type.upper(),
             # quantity를 지정할 때는 closePosition 파라미터를 포함하지 않음
         }
         return self._request("POST", path, params, signed=True)
