@@ -533,13 +533,14 @@ class BinanceClient:
         working_type: str = 'CONTRACT_PRICE',
     ) -> Dict[str, Any]:
         """
-        Take Profit 주문 생성
+        Take Profit 주문 생성 (Algo Order API 사용)
         
         참고: 
+        - TAKE_PROFIT_MARKET은 Algo Order API 엔드포인트(/fapi/v1/algo/order)를 사용해야 함
         - quantity를 지정할 때는 closePosition 파라미터를 포함하지 않아야 함.
         - workingType 파라미터는 stopPrice 해석 방법을 결정함 (MARK_PRICE 또는 CONTRACT_PRICE)
         """
-        path = '/fapi/v1/order'
+        path = '/fapi/v1/algo/order'
         params = {
             'symbol': symbol,
             'side': side.upper(),
@@ -560,13 +561,14 @@ class BinanceClient:
         working_type: str = 'CONTRACT_PRICE',
     ) -> Dict[str, Any]:
         """
-        Stop Loss 주문 생성
+        Stop Loss 주문 생성 (Algo Order API 사용)
         
         참고: 
+        - STOP_MARKET은 Algo Order API 엔드포인트(/fapi/v1/algo/order)를 사용해야 함
         - quantity를 지정할 때는 closePosition 파라미터를 포함하지 않아야 함.
         - workingType 파라미터는 stopPrice 해석 방법을 결정함 (MARK_PRICE 또는 CONTRACT_PRICE)
         """
-        path = '/fapi/v1/order'
+        path = '/fapi/v1/algo/order'
         params = {
             'symbol': symbol,
             'side': side.upper(),
