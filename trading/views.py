@@ -8,49 +8,23 @@ from typing import Any, Dict, Optional
 from django.http import JsonResponse, HttpRequest
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
+from django.core.exceptions import PermissionDenied
 
 from .config import get_config
 from .okx_client import OkxClient
-from .discord import get_discord_webhook_url, send_discord_message
+from .discord import get_discord_webhook_url, send_discord_message, send_trade_notification
 
-
-# ============================================
-# 파일 로깅 설정
-# ============================================
-LOG_DIR = Path(__file__).resolve().parent.parent / "logs"
-LOG_DIR.mkdir(exist_ok=True)
-
-# 웹훅 로그 파일
-WEBHOOK_LOG_FILE = LOG_DIR / "webhook.log"
-
-# 로거 설정
-webhook_logger = logging.getLogger("webhook")
-webhook_logger.setLevel(logging.INFO)
-
-# 파일 핸들러 (append 모드)
-file_handler = logging.FileHandler(WEBHOOK_LOG_FILE, encoding="utf-8")
-file_handler.setLevel(logging.INFO)
-
-# 포맷 설정
-formatter = logging.Formatter("%(asctime)s | %(message)s", datefmt="%Y-%m-%d %H:%M:%S")
-file_handler.setFormatter(formatter)
-
-# 핸들러 추가 (중복 방지)
-if not webhook_logger.handlers:
-    webhook_logger.addHandler(file_handler)
+# 로거 설정 (Django settings.py의 로깅 설정 사용)
+logger = logging.getLogger(__name__)
 
 
 def log_webhook(log_type: str, message: str, data: dict = None):
-    """웹훅 로그를 파일과 콘솔에 기록"""
+    """웹훅 로그를 표준 로거로 기록"""
     log_line = f"[{log_type}] {message}"
     if data:
         log_line += f" | {json.dumps(data, ensure_ascii=False)}"
     
-    # 파일에 기록
-    webhook_logger.info(log_line)
-    
-    # 콘솔에도 출력 (즉시 flush)
-    print(log_line, flush=True)
+    logger.info(log_line)
 
 
 # 웹훅 테스트 로그 저장 (메모리)
@@ -208,15 +182,15 @@ def okx_webhook(request: HttpRequest):
     }
     """
     # 함수 진입 확인 (가장 먼저 실행)
-    print("=" * 80, flush=True)
-    print(f"[OKX_WEBHOOK] 함수 호출됨 | path={request.path} | method={request.method}", flush=True)
-    print(f"[OKX_WEBHOOK] Content-Type: {request.META.get('CONTENT_TYPE', 'N/A')}", flush=True)
-    print(f"[OKX_WEBHOOK] Request body length: {len(request.body)}", flush=True)
-    print("=" * 80, flush=True)
+    logger.info("=" * 80)
+    logger.info(f"[OKX_WEBHOOK] 함수 호출됨 | path={request.path} | method={request.method}")
+    logger.info(f"[OKX_WEBHOOK] Content-Type: {request.META.get('CONTENT_TYPE', 'N/A')}")
+    logger.info(f"[OKX_WEBHOOK] Request body length: {len(request.body)}")
+    logger.info("=" * 80)
     
     # POST 메서드 확인 (수동 체크)
     if request.method != "POST":
-        print(f"[OKX_WEBHOOK] ERROR: Method is {request.method}, not POST", flush=True)
+        logger.error(f"[OKX_WEBHOOK] ERROR: Method is {request.method}, not POST")
         return JsonResponse({
             "ok": False,
             "error": "method_not_allowed",
@@ -236,11 +210,8 @@ def okx_webhook(request: HttpRequest):
         log_webhook("TRADING_DISABLED", "거래 비활성화 상태", {
             "enable_trading": config.enable_trading,
         })
-        return JsonResponse({
-            "ok": False,
-            "error": "trading_disabled",
-            "message": "config.json에서 enable_trading이 false입니다"
-        }, status=403)
+        # PermissionDenied 예외를 발생시켜 에러 핸들러(handler403)가 Discord 알림을 보내도록 함
+        raise PermissionDenied("config.json에서 enable_trading이 false입니다")
     
     # JSON 파싱
     try:
@@ -272,15 +243,8 @@ def okx_webhook(request: HttpRequest):
                 "received_first4": received_secret[:4] if len(received_secret) >= 4 else received_secret,
                 "expected_first4": expected_secret[:4] if len(expected_secret) >= 4 else expected_secret,
             })
-            return JsonResponse({
-                "ok": False,
-                "error": "invalid_secret",
-                "message": "웹훅 시크릿이 일치하지 않습니다. config.json의 webhook_secret을 확인하세요.",
-                "debug": {
-                    "received_length": len(received_secret),
-                    "expected_length": len(expected_secret),
-                }
-            }, status=403)
+            # PermissionDenied 예외를 발생시켜 에러 핸들러(handler403)가 Discord 알림을 보내도록 함
+            raise PermissionDenied("웹훅 시크릿이 일치하지 않습니다. config.json의 webhook_secret을 확인하세요.")
 
     # 신호 파싱
     try:
@@ -314,7 +278,7 @@ def okx_webhook(request: HttpRequest):
         })
         
         # 계정별 OKX 클라이언트 생성
-        client = OkxClient.from_account_config(account_config, config.trading)
+        client = OkxClient.from_account_config(account_config, config.trading, config)
         
         try:
             # 수량 결정: use_full_balance=true면 자동 계산
@@ -395,6 +359,21 @@ def okx_webhook(request: HttpRequest):
                     "code": resp.get("code"),
                 })
                 
+                # Discord 알림 전송 (주문 실패)
+                webhook_url = get_discord_webhook_url()
+                if webhook_url:
+                    try:
+                        send_trade_notification(
+                            webhook_url=webhook_url,
+                            symbol=account_signal["symbol"],
+                            side=account_signal["side"],
+                            size=account_signal["size"],
+                            status="error",
+                            error=f"[{account_name}] {error_msg}",
+                        )
+                    except Exception as e:
+                        logger.error(f"Discord 알림 전송 실패 (주문 실패): {e}")
+                
                 errors.append({
                     "account": account_name,
                     "error": error_msg,
@@ -410,16 +389,33 @@ def okx_webhook(request: HttpRequest):
                 except Exception:
                     raw_resp = "unavailable"
             
+            error_msg = str(e)
+            
             # 파일 로그 (예외)
-            log_webhook("ORDER_EXCEPTION", f"계정 '{account_name}' {str(e)}", {
+            log_webhook("ORDER_EXCEPTION", f"계정 '{account_name}' {error_msg}", {
                 "account": account_name,
                 "signal": account_signal,
                 "raw_response": raw_resp,
             })
             
+            # Discord 알림 전송 (예외)
+            webhook_url = get_discord_webhook_url()
+            if webhook_url:
+                try:
+                    send_trade_notification(
+                        webhook_url=webhook_url,
+                        symbol=account_signal.get("symbol", "UNKNOWN"),
+                        side=account_signal.get("side", "unknown"),
+                        size=account_signal.get("size", "0"),
+                        status="error",
+                        error=f"[{account_name}] {error_msg}",
+                    )
+                except Exception as discord_error:
+                    logger.error(f"Discord 알림 전송 실패 (주문 예외): {discord_error}")
+            
             errors.append({
                 "account": account_name,
-                "error": str(e),
+                "error": error_msg,
                 "raw_response": raw_resp
             })
     
@@ -483,7 +479,7 @@ def account_check(request: HttpRequest):
         
         # 모든 계정의 잔고 조회 (useYn과 관계없이)
         try:
-            client = OkxClient.from_account_config(account, config.trading)
+            client = OkxClient.from_account_config(account, config.trading, config)
             balance_resp = client.get_balance()
             
             # 잔고 정보 파싱
@@ -671,22 +667,20 @@ def webhook_test(request: HttpRequest):
         "parse_error": parse_error,
     })
     
-    # 콘솔 로그 출력 (서버 터미널에서 확인)
-    print("\n" + "=" * 60)
-    print("📥 [WEBHOOK TEST] 웹훅 수신!")
-    print("=" * 60)
-    print(f"⏰ 시간: {timestamp}")
-    print(f"🌐 IP: {client_ip}")
-    print(f"📱 User-Agent: {user_agent[:50]}...")
-    print(f"📋 Content-Type: {content_type}")
-    print(f"✅ JSON 유효: {json_valid}")
-    print("-" * 60)
-    print("📦 Raw Body:")
-    print(raw_body[:500])
-    print("-" * 60)
-    print("📊 Parsed Payload:")
-    print(json.dumps(payload, indent=2, ensure_ascii=False)[:500])
-    print("=" * 60 + "\n")
+    # 상세 로그 출력
+    logger.info("\n" + "=" * 60)
+    logger.info("📥 [WEBHOOK TEST] 웹훅 수신!")
+    logger.info("=" * 60)
+    logger.info(f"⏰ 시간: {timestamp}")
+    logger.info(f"🌐 IP: {client_ip}")
+    logger.info(f"📱 User-Agent: {user_agent[:50]}...")
+    logger.info(f"📋 Content-Type: {content_type}")
+    logger.info(f"✅ JSON 유효: {json_valid}")
+    logger.info("-" * 60)
+    logger.info(f"📦 Raw Body: {raw_body[:500]}")
+    logger.info("-" * 60)
+    logger.info(f"📊 Parsed Payload: {json.dumps(payload, indent=2, ensure_ascii=False)[:500]}")
+    logger.info("=" * 60 + "\n")
     
     # 응답
     return JsonResponse({

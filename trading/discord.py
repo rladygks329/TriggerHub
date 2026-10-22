@@ -1,7 +1,11 @@
 import os
 import json
+import logging
 from typing import Optional, Dict, Any
 import requests
+
+# 로거 설정
+logger = logging.getLogger(__name__)
 
 
 def send_discord_message(
@@ -52,7 +56,7 @@ def send_discord_message(
         response.raise_for_status()
         return True
     except Exception as e:
-        print(f"[DISCORD ERROR] {e}")
+        logger.error(f"[DISCORD ERROR] {e}")
         return False
 
 

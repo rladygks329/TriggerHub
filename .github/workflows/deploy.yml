@@ -3,7 +3,7 @@ name: Deploy to EC2
 on:
   push:
     branches:
-      - master
+      - main
       - zdev
   workflow_dispatch:
 
@@ -30,11 +30,40 @@ jobs:
         run: |
           ssh -i ~/.ssh/deploy_key ${ZDEV_USER}@${ZDEV_HOST} << 'EOF'
             set -e
-            cd /home/ubuntu/opt/TriggerHub
+            PROJECT_DIR="/home/ubuntu/opt/TriggerHub"
+            cd "$PROJECT_DIR"
+            
+            # 로그 디렉토리 명시적으로 생성 (존재하지 않는 경우)
+            mkdir -p "$PROJECT_DIR/logs"
+            mkdir -p "$PROJECT_DIR/logs/backup"
+            
+            # 로그 파일 백업 (서버 재시작 전)
+            if [ -d "$PROJECT_DIR/logs" ]; then
+              TIMESTAMP=$(date +"%Y%m%d-%H%M%S")
+              BACKUP_DIR="$PROJECT_DIR/logs/backup"
+              mkdir -p "$BACKUP_DIR"
+              
+              # 현재 로그 파일들을 타임스탬프와 함께 백업
+              for log_file in "$PROJECT_DIR/logs"/*.log; do
+                if [ -f "$log_file" ]; then
+                  filename=$(basename "$log_file" .log)
+                  backup_file="$BACKUP_DIR/${filename}-${TIMESTAMP}.log"
+                  cp "$log_file" "$backup_file"
+                  echo "📦 로그 백업: $(basename "$log_file") → $(basename "$backup_file")"
+                fi
+              done
+              
+              # 오래된 백업 파일 정리 (30일 이상 된 파일 삭제)
+              find "$BACKUP_DIR" -name "*.log" -mtime +30 -delete 2>/dev/null || true
+            fi
             
             # Git pull
             git fetch origin
-            git reset --hard origin/develop
+            git reset --hard origin/zdev
+            
+            # 실행 권한 부여 및 Docker 재빌드 및 재시작
+            chmod +x rebuild.sh
+            ./rebuild.sh
             
             # Health check
             sleep 10
@@ -58,7 +87,7 @@ jobs:
 
   deploy-prod:
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/master'
+    if: github.ref == 'refs/heads/main'
 
     steps:
       - name: Checkout code
@@ -78,11 +107,40 @@ jobs:
         run: |
           ssh -i ~/.ssh/deploy_key ${EC2_USER}@${EC2_HOST} << 'EOF'
             set -e
-            cd /home/ubuntu/opt/TriggerHub
+            PROJECT_DIR="/home/ubuntu/opt/TriggerHub"
+            cd "$PROJECT_DIR"
+            
+            # 로그 디렉토리 명시적으로 생성 (존재하지 않는 경우)
+            mkdir -p "$PROJECT_DIR/logs"
+            mkdir -p "$PROJECT_DIR/logs/backup"
+            
+            # 로그 파일 백업 (서버 재시작 전)
+            if [ -d "$PROJECT_DIR/logs" ]; then
+              TIMESTAMP=$(date +"%Y%m%d-%H%M%S")
+              BACKUP_DIR="$PROJECT_DIR/logs/backup"
+              mkdir -p "$BACKUP_DIR"
+              
+              # 현재 로그 파일들을 타임스탬프와 함께 백업
+              for log_file in "$PROJECT_DIR/logs"/*.log; do
+                if [ -f "$log_file" ]; then
+                  filename=$(basename "$log_file" .log)
+                  backup_file="$BACKUP_DIR/${filename}-${TIMESTAMP}.log"
+                  cp "$log_file" "$backup_file"
+                  echo "📦 로그 백업: $(basename "$log_file") → $(basename "$backup_file")"
+                fi
+              done
+              
+              # 오래된 백업 파일 정리 (30일 이상 된 파일 삭제)
+              find "$BACKUP_DIR" -name "*.log" -mtime +30 -delete 2>/dev/null || true
+            fi
             
             # Git pull
             git fetch origin
             git reset --hard origin/main
+            
+            # 실행 권한 부여 및 Docker 재빌드 및 재시작
+            chmod +x rebuild.sh
+            ./rebuild.sh
             
             # Health check
             sleep 10
